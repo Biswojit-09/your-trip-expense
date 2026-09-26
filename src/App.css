@@ -2204,10 +2204,8 @@ a {
   }
 
 }
-/* =========================================
-   TRIP DETAILS TEXT VISIBILITY FIX
-/* =========================================
-   MEMBER INPUT
+/* =/* =========================================
+   MEMBER INPUT ONLY
 ========================================= */
 
 .member-form input[type="text"] {
@@ -2223,4 +2221,33 @@ a {
   color: #777777 !important;
   -webkit-text-fill-color: #777777 !important;
   opacity: 1 !important;
+}
+/* =========================================
+   ADD EXPENSE INPUTS ONLY
+========================================= */
+
+.trip-form-card input[type="text"],
+.trip-form-card input[type="number"],
+.trip-form-card textarea,
+.trip-form-card select {
+  color: #111111 !important;
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  -webkit-text-fill-color: #111111 !important;
+  opacity: 1 !important;
+  caret-color: #111111 !important;
+}
+
+.trip-form-card input[type="text"]::placeholder,
+.trip-form-card input[type="number"]::placeholder,
+.trip-form-card textarea::placeholder {
+  color: #777777 !important;
+  -webkit-text-fill-color: #777777 !important;
+  opacity: 1 !important;
+}
+
+/* Dropdown options */
+.trip-form-card select option {
+  background: #ffffff !important;
+  color: #111111 !important;
 }
