@@ -1,5 +1,3 @@
-console.log("NEW TRIP DETAILS COMPONENT IS RUNNING");
-
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { supabase } from "../supabaseClient";
@@ -8,12 +6,27 @@ import landingPage from "../assets/Landing-page.png";
 function TripDetails() {
   const { tripId } = useParams();
 
+  // =========================================
+  // MAIN DATA
+  // =========================================
+
   const [trip, setTrip] = useState(null);
   const [members, setMembers] = useState([]);
+  
   const [expenses, setExpenses] = useState([]);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [actionMessage, setActionMessage] = useState("");
+  const [actionError, setActionError] = useState("");
+
+  // =========================================
+  // MEMBER FORM
+  // =========================================
+
+  const [showMemberForm, setShowMemberForm] = useState(false);
+  const [memberName, setMemberName] = useState("");
+  const [savingMember, setSavingMember] = useState(false);
 
   // =========================================
   // EXPENSE FORM
@@ -21,6 +34,7 @@ function TripDetails() {
 
   const [showExpenseForm, setShowExpenseForm] = useState(false);
   const [editingExpense, setEditingExpense] = useState(null);
+  const [savingExpense, setSavingExpense] = useState(false);
 
   const [description, setDescription] = useState("");
   const [location, setLocation] = useState("");
@@ -32,156 +46,113 @@ function TripDetails() {
   const [splitType, setSplitType] = useState("equal");
   const [note, setNote] = useState("");
 
-  const [savingExpense, setSavingExpense] = useState(false);
+  // Custom amount for each member
+  const [customAmounts, setCustomAmounts] = useState({});
+
+  // Percentage for each member
+  const [customPercentages, setCustomPercentages] =
+    useState({});
+
+  // =========================================
+  // HELPERS
+  // =========================================
+
+  const showSuccess = (message) => {
+    setActionMessage(message);
+    setActionError("");
+
+    setTimeout(() => {
+      setActionMessage("");
+    }, 3000);
+  };
+
+  const showError = (message) => {
+    setActionError(message);
+    setActionMessage("");
+
+    setTimeout(() => {
+      setActionError("");
+    }, 5000);
+  };
+
+  const formatMoney = (value) => {
+    return Number(value || 0).toLocaleString("en-IN", {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    });
+  };
+
+  const roundMoney = (value) => {
+    return Math.round(Number(value) * 100) / 100;
+  };
 
   // =========================================
   // LOAD TRIP
   // =========================================
 
-  useEffect(() => {
-    let cancelled = false;
+  const loadTrip = async () => {
+    if (!tripId) {
+      setError("Trip ID is missing.");
+      setLoading(false);
+      return;
+    }
 
-    const fetchTrip = async () => {
-      if (!tripId) {
-        setError("Trip ID is missing.");
-        setLoading(false);
-        return;
+    try {
+      setLoading(true);
+      setError("");
+
+      // TRIP
+      const {
+        data: tripData,
+        error: tripError,
+      } = await supabase
+        .from("trips")
+        .select("*")
+        .eq("id", tripId)
+        .single();
+
+      if (tripError) {
+        throw tripError;
       }
 
-      try {
-        const {
-          data: tripData,
-          error: tripError,
-        } = await supabase
-          .from("trips")
-          .select("*")
-          .eq("id", tripId)
-          .single();
+      setTrip(tripData);
 
-        if (tripError) {
-          throw tripError;
-        }
+      // MEMBERS
+      const {
+        data: memberData,
+        error: memberError,
+      } = await supabase
+        .from("trip_members")
+        .select("*")
+        .eq("trip_id", tripId)
+        .order("joined_at", {
+          ascending: true,
+        });
 
-        if (cancelled) return;
-
-        setTrip(tripData);
-
-        // MEMBERS
-        const {
-          data: memberData,
-          error: memberError,
-        } = await supabase
-          .from("trip_members")
-          .select("*")
-          .eq("trip_id", tripId)
-          .order("joined_at", {
-            ascending: true,
-          });
-
-        if (memberError) {
-          console.error(
-            "Member loading error:",
-            memberError
-          );
-        }
-
-        if (cancelled) return;
-
-        setMembers(memberData || []);
-
-        // EXPENSES
-        const {
-          data: expenseData,
-          error: expenseError,
-        } = await supabase
-          .from("expenses")
-          .select("*")
-          .eq("trip_id", tripId)
-          .order("created_at", {
-            ascending: false,
-          });
-
-        if (expenseError) {
-          console.error(
-            "Expense loading error:",
-            expenseError
-          );
-        }
-
-        if (cancelled) return;
-
-        // LOAD SPLITS
-        const expenseIds =
-          (expenseData || []).map(
-            (expense) => expense.id
-          );
-
-        let splitData = [];
-
-        if (expenseIds.length > 0) {
-          const {
-            data,
-            error: splitError,
-          } = await supabase
-            .from("expense_splits")
-            .select("*")
-            .in("expense_id", expenseIds);
-
-          if (splitError) {
-            console.error(
-              "Split loading error:",
-              splitError
-            );
-          }
-
-          splitData = data || [];
-        }
-
-        if (cancelled) return;
-
-        const expensesWithSplits =
-          (expenseData || []).map(
-            (expense) => ({
-              ...expense,
-              splits: splitData.filter(
-                (split) =>
-                  split.expense_id === expense.id
-              ),
-            })
-          );
-
-        setExpenses(expensesWithSplits);
-      } catch (err) {
-        console.error(
-          "Trip loading error:",
-          err
-        );
-
-        if (!cancelled) {
-          setError(
-            err.message ||
-              "Unable to load this trip."
-          );
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+      if (memberError) {
+        throw memberError;
       }
-    };
 
-    fetchTrip();
+      setMembers(memberData || []);
 
-    return () => {
-      cancelled = true;
-    };
-  }, [tripId]);
+      // EXPENSES
+      await loadExpenses();
+    } catch (err) {
+      console.error("Trip loading error:", err);
+
+      setError(
+        err.message || "Unable to load this trip."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // =========================================
-  // REFRESH EXPENSES
+  // LOAD EXPENSES
   // =========================================
 
-  const refreshExpenses = async () => {
+  const loadExpenses = async () => {
     const {
       data: expenseData,
       error: expenseError,
@@ -194,14 +165,12 @@ function TripDetails() {
       });
 
     if (expenseError) {
-      console.error(expenseError);
-      return;
+      throw expenseError;
     }
 
-    const expenseIds =
-      (expenseData || []).map(
-        (expense) => expense.id
-      );
+    const expenseIds = (expenseData || []).map(
+      (expense) => expense.id
+    );
 
     let splitData = [];
 
@@ -215,45 +184,201 @@ function TripDetails() {
         .in("expense_id", expenseIds);
 
       if (splitError) {
-        console.error(splitError);
+        throw splitError;
       }
 
       splitData = data || [];
     }
 
     const expensesWithSplits =
-      (expenseData || []).map(
-        (expense) => ({
-          ...expense,
-          splits: splitData.filter(
-            (split) =>
-              split.expense_id === expense.id
-          ),
-        })
-      );
+      (expenseData || []).map((expense) => ({
+        ...expense,
+        splits: splitData.filter(
+          (split) =>
+            split.expense_id === expense.id
+        ),
+      }));
 
     setExpenses(expensesWithSplits);
   };
 
   // =========================================
-  // FORMAT MONEY
+  // INITIAL LOAD
   // =========================================
 
-  const formatMoney = (amount) => {
-    return Number(amount || 0).toLocaleString(
-      "en-IN",
-      {
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 2,
+  useEffect(() => {
+    let cancelled = false;
+
+    const run = async () => {
+      if (!cancelled) {
+        await loadTrip();
       }
+    };
+
+    run();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [tripId]);
+
+  // =========================================
+  // MEMBER MANAGEMENT
+  // =========================================
+// =========================================
+// MEMBER MANAGEMENT
+// =========================================
+
+const openMemberForm = () => {
+  setMemberName("");
+  setShowMemberForm(true);
+};
+
+const closeMemberForm = () => {
+  setMemberName("");
+  setShowMemberForm(false);
+};
+
+const addMember = async (event) => {
+  event.preventDefault();
+
+  const cleanName = memberName.trim();
+
+  if (!cleanName) {
+    showError("Please enter the member name.");
+    return;
+  }
+
+  if (cleanName.length < 2) {
+    showError(
+      "Member name must contain at least 2 characters."
     );
-  };
+    return;
+  }
+
+  const alreadyExists = members.some(
+    (member) =>
+      member.member_name.trim().toLowerCase() ===
+      cleanName.toLowerCase()
+  );
+
+  if (alreadyExists) {
+    showError(
+      "This member is already in the trip."
+    );
+    return;
+  }
+
+  setSavingMember(true);
+
+  try {
+    const { data, error: insertError } =
+      await supabase
+        .from("trip_members")
+        .insert({
+          trip_id: tripId,
+          member_name: cleanName,
+        })
+        .select()
+        .single();
+
+    if (insertError) {
+      throw insertError;
+    }
+
+    setMembers((current) => [
+      ...current,
+      data,
+    ]);
+
+    closeMemberForm();
+
+    showSuccess(
+      `${cleanName} was added to the trip.`
+    );
+  } catch (err) {
+    console.error(
+      "Add member error:",
+      err
+    );
+
+    showError(
+      err.message ||
+        "Unable to add member."
+    );
+  } finally {
+    setSavingMember(false);
+  }
+};
+
+const deleteMember = async (member) => {
+  const removedMemberName =
+    member.member_name;
+
+  const usedInExpenses = expenses.some(
+    (expense) =>
+      expense.paid_by === removedMemberName ||
+      (expense.splits || []).some(
+        (split) =>
+          split.member_name ===
+          removedMemberName
+      )
+  );
+
+  if (usedInExpenses) {
+    showError(
+      `${removedMemberName} cannot be deleted because this member is already used in an expense.`
+    );
+    return;
+  }
+
+  const confirmed = window.confirm(
+    `Remove ${removedMemberName} from this trip?`
+  );
+
+  if (!confirmed) {
+    return;
+  }
+
+  try {
+    const { error: deleteError } =
+      await supabase
+        .from("trip_members")
+        .delete()
+        .eq("id", member.id)
+        .eq("trip_id", tripId);
+
+    if (deleteError) {
+      throw deleteError;
+    }
+
+    setMembers((current) =>
+      current.filter(
+        (item) => item.id !== member.id
+      )
+    );
+
+    showSuccess(
+      `${removedMemberName} was removed.`
+    );
+  } catch (err) {
+    console.error(
+      "Delete member error:",
+      err
+    );
+
+    showError(
+      err.message ||
+        "Unable to delete member."
+    );
+  }
+};
 
   // =========================================
-  // RESET FORM
+  // EXPENSE FORM
   // =========================================
 
-  const resetForm = () => {
+  const resetExpenseForm = () => {
     setDescription("");
     setLocation("");
     setCategory("Food");
@@ -264,30 +389,37 @@ function TripDetails() {
     setSplitType("equal");
     setNote("");
     setEditingExpense(null);
+    setCustomAmounts({});
+    setCustomPercentages({});
   };
 
-  // =========================================
-  // OPEN ADD FORM
-  // =========================================
-
   const openAddExpense = () => {
-    resetForm();
+    resetExpenseForm();
 
     if (members.length > 0) {
-      setPaidBy(members[0].member_name);
-      setSharedWith(
-        members.map(
-          (member) => member.member_name
-        )
+      const names = members.map(
+        (member) => member.member_name
       );
+
+      setPaidBy(names[0]);
+      setSharedWith(names);
+
+      const equalPercentage =
+        100 / names.length;
+
+      const percentages = {};
+
+      names.forEach((name) => {
+        percentages[name] = roundMoney(
+          equalPercentage
+        );
+      });
+
+      setCustomPercentages(percentages);
     }
 
     setShowExpenseForm(true);
   };
-
-  // =========================================
-  // OPEN EDIT FORM
-  // =========================================
 
   const openEditExpense = (expense) => {
     setEditingExpense(expense);
@@ -324,28 +456,126 @@ function TripDetails() {
       expense.note || ""
     );
 
-    setSharedWith(
+    const selectedMembers =
       (expense.splits || []).map(
         (split) => split.member_name
-      )
+      );
+
+    setSharedWith(selectedMembers);
+
+    const amounts = {};
+    const percentages = {};
+
+    (expense.splits || []).forEach(
+      (split) => {
+        amounts[split.member_name] =
+          split.amount;
+
+        percentages[split.member_name] =
+          split.percentage || 0;
+      }
     );
+
+    setCustomAmounts(amounts);
+    setCustomPercentages(percentages);
 
     setShowExpenseForm(true);
   };
 
+  const closeExpenseForm = () => {
+    resetExpenseForm();
+    setShowExpenseForm(false);
+  };
+
   // =========================================
-  // TOGGLE MEMBER
+  // SHARED MEMBERS
   // =========================================
 
-  const toggleSharedMember = (memberName) => {
+  const toggleSharedMember = (name) => {
     setSharedWith((current) => {
-      if (current.includes(memberName)) {
+      if (current.includes(name)) {
         return current.filter(
-          (name) => name !== memberName
+          (item) => item !== name
         );
       }
 
-      return [...current, memberName];
+      return [...current, name];
+    });
+  };
+
+  // =========================================
+  // SPLIT CALCULATION
+  // =========================================
+
+  const calculateEqualSplits = (
+    total,
+    names
+  ) => {
+    if (!names.length) return [];
+
+    const totalCents = Math.round(
+      total * 100
+    );
+
+    const baseCents = Math.floor(
+      totalCents / names.length
+    );
+
+    const remainder =
+      totalCents -
+      baseCents * names.length;
+
+    return names.map(
+      (name, index) => ({
+        member_name: name,
+        amount:
+          (baseCents +
+            (index < remainder ? 1 : 0)) /
+          100,
+        percentage:
+          roundMoney(
+            ((
+              baseCents +
+              (index < remainder ? 1 : 0)
+            ) /
+              totalCents) *
+              100
+          ),
+      })
+    );
+  };
+
+  const calculateCustomSplits = (
+    names
+  ) => {
+    return names.map((name) => ({
+      member_name: name,
+      amount: roundMoney(
+        Number(
+          customAmounts[name] || 0
+        )
+      ),
+      percentage: null,
+    }));
+  };
+
+  const calculatePercentageSplits = (
+    total,
+    names
+  ) => {
+    return names.map((name) => {
+      const percentage = Number(
+        customPercentages[name] || 0
+      );
+
+      return {
+        member_name: name,
+        amount: roundMoney(
+          (total * percentage) / 100
+        ),
+        percentage:
+          roundMoney(percentage),
+      };
     });
   };
 
@@ -356,21 +586,117 @@ function TripDetails() {
   const saveExpense = async (event) => {
     event.preventDefault();
 
-    if (!amount || Number(amount) <= 0) {
-      alert("Please enter a valid amount.");
+    const totalAmount = roundMoney(amount);
+
+    if (!description.trim() && !location.trim()) {
+      showError(
+        "Please enter an expense description or location."
+      );
+      return;
+    }
+
+    if (!totalAmount || totalAmount <= 0) {
+      showError(
+        "Please enter a valid expense amount."
+      );
       return;
     }
 
     if (!paidBy) {
-      alert("Please select who paid.");
+      showError(
+        "Please select who paid."
+      );
       return;
     }
 
     if (sharedWith.length === 0) {
-      alert(
-        "Please select at least one member under Shared With."
+      showError(
+        "Please select at least one member."
       );
       return;
+    }
+
+    if (
+      category === "Transport" &&
+      !transportType
+    ) {
+      showError(
+        "Please select the transport type."
+      );
+      return;
+    }
+
+    let splitRows = [];
+
+    // EQUAL
+    if (splitType === "equal") {
+      splitRows = calculateEqualSplits(
+        totalAmount,
+        sharedWith
+      );
+    }
+
+    // CUSTOM
+    if (splitType === "custom") {
+      splitRows =
+        calculateCustomSplits(
+          sharedWith
+        );
+
+      const customTotal = roundMoney(
+        splitRows.reduce(
+          (sum, item) =>
+            sum + Number(item.amount),
+          0
+        )
+      );
+
+      if (
+        Math.abs(
+          customTotal - totalAmount
+        ) > 0.01
+      ) {
+        showError(
+          `Custom split must equal ₹${formatMoney(
+            totalAmount
+          )}. Current total: ₹${formatMoney(
+            customTotal
+          )}.`
+        );
+        return;
+      }
+    }
+
+    // PERCENTAGE
+    if (splitType === "percentage") {
+      splitRows =
+        calculatePercentageSplits(
+          totalAmount,
+          sharedWith
+        );
+
+      const percentageTotal =
+        roundMoney(
+          splitRows.reduce(
+            (sum, item) =>
+              sum +
+              Number(
+                item.percentage || 0
+              ),
+            0
+          )
+        );
+
+      if (
+        Math.abs(
+          percentageTotal - 100
+        ) > 0.01
+      ) {
+        showError(
+          `Percentage split must equal 100%. Current total: ${percentageTotal}%.`
+        );
+        return;
+      }
     }
 
     setSavingExpense(true);
@@ -385,18 +711,19 @@ function TripDetails() {
         category,
         transport_type:
           category === "Transport"
-            ? transportType || null
+            ? transportType
             : null,
-        amount: Number(amount),
+        amount: totalAmount,
         paid_by: paidBy,
         split_type: splitType,
-        note: note.trim() || null,
+        note:
+          note.trim() || null,
       };
 
       let expenseId;
 
       // =====================================
-      // EDIT
+      // UPDATE
       // =====================================
 
       if (editingExpense) {
@@ -405,25 +732,37 @@ function TripDetails() {
         } = await supabase
           .from("expenses")
           .update(expenseData)
-          .eq("id", editingExpense.id);
+          .eq(
+            "id",
+            editingExpense.id
+          )
+          .eq("trip_id", tripId);
 
         if (updateError) {
           throw updateError;
         }
 
-        expenseId = editingExpense.id;
+        expenseId =
+          editingExpense.id;
 
-        await supabase
+        // Delete old splits first
+        const {
+          error: deleteSplitError,
+        } = await supabase
           .from("expense_splits")
           .delete()
           .eq(
             "expense_id",
-            editingExpense.id
+            expenseId
           );
+
+        if (deleteSplitError) {
+          throw deleteSplitError;
+        }
       }
 
       // =====================================
-      // ADD
+      // INSERT
       // =====================================
 
       else {
@@ -444,55 +783,52 @@ function TripDetails() {
       }
 
       // =====================================
-      // CALCULATE SPLIT
+      // INSERT SPLITS
       // =====================================
 
-      const totalAmount = Number(amount);
-
-      const equalShare =
-        totalAmount / sharedWith.length;
-
-      const splitRows =
-        sharedWith.map((memberName) => ({
+      const splitRowsForDatabase =
+        splitRows.map((split) => ({
           expense_id: expenseId,
-          member_name: memberName,
+          member_name:
+            split.member_name,
           amount:
-            splitType === "equal"
-              ? equalShare
-              : equalShare,
+            Number(split.amount),
           percentage:
-            splitType === "equal"
-              ? 100 / sharedWith.length
-              : 100 / sharedWith.length,
+            split.percentage === null
+              ? null
+              : Number(
+                  split.percentage
+                ),
         }));
 
       const {
-        error: splitInsertError,
+        error: splitError,
       } = await supabase
         .from("expense_splits")
-        .insert(splitRows);
+        .insert(
+          splitRowsForDatabase
+        );
 
-      if (splitInsertError) {
-        throw splitInsertError;
+      if (splitError) {
+        throw splitError;
       }
 
-      await refreshExpenses();
+      await loadExpenses();
 
-      resetForm();
-      setShowExpenseForm(false);
+      closeExpenseForm();
 
-      alert(
+      showSuccess(
         editingExpense
-          ? "Expense updated successfully!"
-          : "Expense added successfully!"
+          ? "Expense updated successfully."
+          : "Expense added successfully."
       );
     } catch (err) {
       console.error(
-        "Saving expense error:",
+        "Save expense error:",
         err
       );
 
-      alert(
+      showError(
         err.message ||
           "Unable to save expense."
       );
@@ -505,34 +841,73 @@ function TripDetails() {
   // DELETE EXPENSE
   // =========================================
 
-  const deleteExpense = async (expenseId) => {
-    const confirmed = window.confirm(
-      "Are you sure you want to delete this expense?"
-    );
+  const deleteExpense = async (
+    expense
+  ) => {
+    const confirmed =
+      window.confirm(
+        `Delete "${expense.description || "this expense"}"?`
+      );
 
     if (!confirmed) return;
 
     try {
+      // Delete splits first.
+      // This makes deletion work even if
+      // database cascade settings are different.
       const {
-        error: deleteError,
+        error: splitDeleteError,
+      } = await supabase
+        .from("expense_splits")
+        .delete()
+        .eq(
+          "expense_id",
+          expense.id
+        );
+
+      if (splitDeleteError) {
+        throw splitDeleteError;
+      }
+
+      // Delete expense
+      const {
+        error: expenseDeleteError,
       } = await supabase
         .from("expenses")
         .delete()
-        .eq("id", expenseId);
+        .eq("id", expense.id)
+        .eq("trip_id", tripId);
 
-      if (deleteError) {
-        throw deleteError;
+      if (expenseDeleteError) {
+        throw expenseDeleteError;
       }
 
-      await refreshExpenses();
+      setExpenses((current) =>
+        current.filter(
+          (item) =>
+            item.id !== expense.id
+        )
+      );
 
-      alert("Expense deleted.");
+      if (
+        editingExpense?.id ===
+        expense.id
+      ) {
+        closeExpenseForm();
+      }
+
+      showSuccess(
+        "Expense deleted successfully."
+      );
     } catch (err) {
-      console.error(err);
+      console.error(
+        "Delete expense error:",
+        err
+      );
 
-      alert(
+      showError(
         err.message ||
-          "Unable to delete expense."
+          "Unable to delete expense. Check your Supabase DELETE policies."
       );
     }
   };
@@ -543,48 +918,17 @@ function TripDetails() {
 
   if (loading) {
     return (
-      <div
-        className="travel-dashboard"
-        style={{
-          backgroundImage:
-            `url(${landingPage})`,
-        }}
-      >
-        <div className="dashboard-overlay"></div>
-
-        <div className="dashboard-content">
-
-          <nav className="dashboard-nav">
-
-            <Link
-              to="/dashboard"
-              className="dashboard-logo"
-            >
-              Your Trip Expense
-            </Link>
-
-            <Link to="/dashboard">
-              <button className="dashboard-home-btn">
-                Dashboard
-              </button>
-            </Link>
-
-          </nav>
-
-          <div className="dashboard-loading">
-
-            <div className="dashboard-spinner">
-              ↻
-            </div>
-
-            <p>
-              Loading your trip...
-            </p>
-
+      <TripShell>
+        <div className="dashboard-loading">
+          <div className="dashboard-spinner">
+            ↻
           </div>
 
+          <p>
+            Loading your trip...
+          </p>
         </div>
-      </div>
+      </TripShell>
     );
   }
 
@@ -592,65 +936,31 @@ function TripDetails() {
   // ERROR
   // =========================================
 
-  if (error) {
+  if (error || !trip) {
     return (
-      <div
-        className="travel-dashboard"
-        style={{
-          backgroundImage:
-            `url(${landingPage})`,
-        }}
-      >
-        <div className="dashboard-overlay"></div>
+      <TripShell>
+        <section className="dashboard-empty glass-card">
+          <div className="empty-trip-icon">
+            ⚠️
+          </div>
 
-        <div className="dashboard-content">
+          <h2>
+            Unable to load trip
+          </h2>
 
-          <nav className="dashboard-nav">
+          <p>
+            {error ||
+              "Trip not found."}
+          </p>
 
-            <Link
-              to="/dashboard"
-              className="dashboard-logo"
-            >
-              Your Trip Expense
-            </Link>
-
-            <Link to="/dashboard">
-              <button className="dashboard-home-btn">
-                Dashboard
-              </button>
-            </Link>
-
-          </nav>
-
-          <section className="dashboard-empty glass-card">
-
-            <div className="empty-trip-icon">
-              ⚠️
-            </div>
-
-            <h2>
-              Unable to load trip
-            </h2>
-
-            <p>
-              {error}
-            </p>
-
-            <Link to="/dashboard">
-              <button className="dashboard-create-btn">
-                ← Back to Dashboard
-              </button>
-            </Link>
-
-          </section>
-
-        </div>
-      </div>
+          <Link to="/dashboard">
+            <button className="dashboard-create-btn">
+              ← Back to Dashboard
+            </button>
+          </Link>
+        </section>
+      </TripShell>
     );
-  }
-
-  if (!trip) {
-    return null;
   }
 
   // =========================================
@@ -662,8 +972,8 @@ function TripDetails() {
   );
 
   const spent = expenses.reduce(
-    (total, expense) =>
-      total +
+    (sum, expense) =>
+      sum +
       Number(expense.amount || 0),
     0
   );
@@ -683,693 +993,755 @@ function TripDetails() {
     remaining < 0;
 
   // =========================================
-  // MAIN PAGE
+  // MAIN
   // =========================================
 
   return (
-    <div
-      className="travel-dashboard"
-      style={{
-        backgroundImage:
-          `url(${landingPage})`,
-      }}
-    >
+    <TripShell>
 
-      <div className="dashboard-overlay"></div>
+      {/* =====================================
+          NAVBAR
+      ===================================== */}
 
-      <div className="dashboard-content">
+      <nav className="dashboard-nav">
+        <Link
+          to="/dashboard"
+          className="dashboard-logo"
+        >
+          Your Trip Expense
+        </Link>
 
-        {/* NAVBAR */}
+        <div className="dashboard-nav-right">
+          <span className="dashboard-nav-label">
+            TRIP DETAILS
+          </span>
 
-        <nav className="dashboard-nav">
-
-          <Link
-            to="/dashboard"
-            className="dashboard-logo"
-          >
-            Your Trip Expense
-          </Link>
-
-          <div className="dashboard-nav-right">
-
-            <span className="dashboard-nav-label">
-              TRIP DETAILS
-            </span>
-
-            <Link to="/dashboard">
-
-              <button className="dashboard-home-btn">
-                Dashboard
-              </button>
-
-            </Link>
-
-          </div>
-
-        </nav>
-
-
-        {/* TRIP HEADER */}
-
-        <section className="dashboard-hero">
-
-          <div>
-
-            <p className="dashboard-eyebrow">
-              YOUR JOURNEY • YOUR MONEY
-            </p>
-
-            <h1>
-
-              {trip.name}
-
-              <br />
-
-              <span>
-                {trip.destination}
-              </span>
-
-            </h1>
-
-            <p className="dashboard-description">
-
-              📅 {trip.start_date}
-              {" → "}
-              {trip.end_date}
-
-            </p>
-
-          </div>
-
-          <div className="dashboard-main-actions">
-
-            <button
-              className="dashboard-create-btn"
-              onClick={openAddExpense}
-            >
-              + Add Expense
+          <Link to="/dashboard">
+            <button className="dashboard-home-btn">
+              Dashboard
             </button>
+          </Link>
+        </div>
+      </nav>
 
-            <Link to="/dashboard">
+      {/* =====================================
+          ALERTS
+      ===================================== */}
 
-              <button className="dashboard-refresh-btn">
-                ← Dashboard
-              </button>
+      {(actionMessage ||
+        actionError) && (
+        <div
+          className={
+            actionError
+              ? "trip-alert error"
+              : "trip-alert success"
+          }
+        >
+          {actionError ||
+            actionMessage}
+        </div>
+      )}
 
-            </Link>
+      {/* =====================================
+          TRIP HEADER
+      ===================================== */}
 
+      <section className="dashboard-hero trip-details-hero">
+
+        <div>
+          <p className="dashboard-eyebrow">
+            YOUR JOURNEY • YOUR MONEY
+          </p>
+
+          <h1>
+            {trip.name}
+
+            <br />
+
+            <span>
+              {trip.destination}
+            </span>
+          </h1>
+
+          <p className="dashboard-description">
+            📅 {trip.start_date}
+            {" → "}
+            {trip.end_date}
+          </p>
+        </div>
+
+        <div className="dashboard-main-actions">
+
+          <button
+            className="dashboard-create-btn"
+            onClick={openAddExpense}
+          >
+            + Add Expense
+          </button>
+
+          <button
+            className="dashboard-refresh-btn"
+            onClick={openMemberForm}
+          >
+            + Add Member
+          </button>
+
+        </div>
+
+      </section>
+
+      {/* =====================================
+          OVERVIEW
+      ===================================== */}
+
+      <section className="dashboard-trips">
+
+        <div className="dashboard-section-title">
+          <div>
+            <p>
+              TRIP OVERVIEW
+            </p>
+
+            <h2>
+              Your Trip
+            </h2>
           </div>
 
-        </section>
+          <span>
+            {members.length}{" "}
+            {members.length === 1
+              ? "Member"
+              : "Members"}
+          </span>
+        </div>
 
+        <div className="travel-trip-grid">
 
-        {/* OVERVIEW */}
+          {/* BUDGET */}
 
-        <section className="dashboard-trips">
+          <article className="travel-trip-card">
 
-          <div className="dashboard-section-title">
+            <div className="travel-card-header">
+              <div>
+                <span className="trip-small-label">
+                  TRIP BUDGET
+                </span>
 
-            <div>
+                <h3>
+                  ₹{formatMoney(budget)}
+                </h3>
 
-              <p>
-                TRIP OVERVIEW
-              </p>
+                <p>
+                  Total budget
+                </p>
+              </div>
 
-              <h2>
-                Your Trip
-              </h2>
+              <div className="travel-card-icon">
+                💰
+              </div>
+            </div>
+
+            <div className="travel-money-grid">
+
+              <div>
+                <span>
+                  SPENT
+                </span>
+
+                <strong>
+                  ₹{formatMoney(spent)}
+                </strong>
+              </div>
+
+              <div>
+                <span>
+                  REMAINING
+                </span>
+
+                <strong>
+                  ₹{formatMoney(
+                    Math.abs(remaining)
+                  )}
+                </strong>
+              </div>
 
             </div>
 
-            <span>
-              {members.length}{" "}
-              {members.length === 1
-                ? "Member"
-                : "Members"}
-            </span>
+            <div className="travel-progress-area">
 
-          </div>
-
-
-          <div className="travel-trip-grid">
-
-            {/* BUDGET */}
-
-            <article className="travel-trip-card">
-
-              <div className="travel-card-header">
-
-                <div>
-
-                  <span className="trip-small-label">
-                    TRIP BUDGET
-                  </span>
-
-                  <h3>
-                    ₹{formatMoney(budget)}
-                  </h3>
-
-                  <p>
-                    Total budget
-                  </p>
-
-                </div>
-
-                <div className="travel-card-icon">
-                  💰
-                </div>
-
-              </div>
-
-              <div className="travel-money-grid">
-
-                <div>
-
-                  <span>
-                    SPENT
-                  </span>
-
-                  <strong>
-                    ₹{formatMoney(spent)}
-                  </strong>
-
-                </div>
-
-                <div>
-
-                  <span>
-                    REMAINING
-                  </span>
-
-                  <strong>
-                    ₹{formatMoney(
-                      Math.abs(remaining)
-                    )}
-                  </strong>
-
-                </div>
-
-              </div>
-
-              <div className="travel-progress-area">
-
-                <div className="travel-progress-text">
-
-                  <span>
-                    Budget used
-                  </span>
-
-                  <span>
-                    {percentage.toFixed(0)}%
-                  </span>
-
-                </div>
-
-                <div className="travel-progress">
-
-                  <div
-                    className={
-                      overBudget
-                        ? "travel-progress-fill over"
-                        : "travel-progress-fill"
-                    }
-                    style={{
-                      width:
-                        `${percentage}%`,
-                    }}
-                  />
-
-                </div>
-
-              </div>
-
-              <div
-                className={
-                  overBudget
-                    ? "travel-remaining over"
-                    : "travel-remaining"
-                }
-              >
-
-                <div>
-
-                  <span>
-                    {overBudget
-                      ? "OVER BUDGET"
-                      : "REMAINING"}
-                  </span>
-
-                  <strong>
-                    ₹{formatMoney(
-                      Math.abs(remaining)
-                    )}
-                  </strong>
-
-                </div>
-
+              <div className="travel-progress-text">
                 <span>
-                  {overBudget
-                    ? "⚠"
-                    : "✓"}
+                  Budget used
                 </span>
 
+                <span>
+                  {percentage.toFixed(0)}%
+                </span>
               </div>
 
-            </article>
-
-
-            {/* MEMBERS */}
-
-            <article className="travel-trip-card">
-
-              <div className="travel-card-header">
-
-                <div>
-
-                  <span className="trip-small-label">
-                    MEMBERS
-                  </span>
-
-                  <h3>
-                    {members.length}
-                  </h3>
-
-                  <p>
-                    People in this trip
-                  </p>
-
-                </div>
-
-                <div className="travel-card-icon">
-                  👥
-                </div>
-
+              <div className="travel-progress">
+                <div
+                  className={
+                    overBudget
+                      ? "travel-progress-fill over"
+                      : "travel-progress-fill"
+                  }
+                  style={{
+                    width:
+                      `${percentage}%`,
+                  }}
+                />
               </div>
 
-              <div style={{ marginTop: "20px" }}>
+            </div>
 
-                {members.length === 0 ? (
+            <div
+              className={
+                overBudget
+                  ? "travel-remaining over"
+                  : "travel-remaining"
+              }
+            >
+              <div>
+                <span>
+                  {overBudget
+                    ? "OVER BUDGET"
+                    : "REMAINING"}
+                </span>
 
+                <strong>
+                  ₹{formatMoney(
+                    Math.abs(remaining)
+                  )}
+                </strong>
+              </div>
+
+              <span>
+                {overBudget
+                  ? "⚠"
+                  : "✓"}
+              </span>
+            </div>
+
+          </article>
+
+          {/* MEMBERS */}
+
+          <article className="travel-trip-card">
+
+            <div className="travel-card-header">
+
+              <div>
+                <span className="trip-small-label">
+                  MEMBERS
+                </span>
+
+                <h3>
+                  {members.length}
+                </h3>
+
+                <p>
+                  People in this trip
+                </p>
+              </div>
+
+              <div className="travel-card-icon">
+                👥
+              </div>
+
+            </div>
+
+            <div className="member-list">
+
+              {members.length === 0 ? (
+                <div className="member-empty">
                   <p>
                     No members added yet.
                   </p>
 
-                ) : (
+                  <button
+                    className="dashboard-create-btn"
+                    onClick={openMemberForm}
+                  >
+                    + Add First Member
+                  </button>
+                </div>
+              ) : (
+                members.map((member) => (
+                  <div
+                    className="member-row"
+                    key={member.id}
+                  >
+                    <div>
+                      <span className="member-avatar">
+                        {member.member_name
+                          .charAt(0)
+                          .toUpperCase()}
+                      </span>
 
-                  members.map((member) => (
-
-                    <div
-                      key={member.id}
-                      style={{
-                        padding: "11px 12px",
-                        marginBottom: "8px",
-                        borderRadius: "10px",
-                        background:
-                          "rgba(255,255,255,0.06)",
-                        color: "#dbeafe",
-                      }}
-                    >
-                      👤 {member.member_name}
+                      <span>
+                        {member.member_name}
+                      </span>
                     </div>
 
-                  ))
+                    <button
+                      type="button"
+                      className="member-delete-btn"
+                      onClick={() =>
+                        deleteMember(member)
+                      }
+                      title="Remove member"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))
+              )}
 
-                )}
+            </div>
 
-              </div>
+            {members.length > 0 && (
+              <button
+                className="member-add-link"
+                onClick={openMemberForm}
+              >
+                + Add another member
+              </button>
+            )}
 
-            </article>
+          </article>
 
+          {/* EXPENSE SUMMARY */}
 
-            {/* EXPENSE SUMMARY */}
+          <article className="travel-trip-card">
 
-            <article className="travel-trip-card">
-
-              <div className="travel-card-header">
-
-                <div>
-
-                  <span className="trip-small-label">
-                    EXPENSES
-                  </span>
-
-                  <h3>
-                    {expenses.length}
-                  </h3>
-
-                  <p>
-                    Recorded expenses
-                  </p>
-
-                </div>
-
-                <div className="travel-card-icon">
-                  💸
-                </div>
-
-              </div>
-
-              <div className="travel-money-grid">
-
-                <div>
-
-                  <span>
-                    TOTAL SPENT
-                  </span>
-
-                  <strong>
-                    ₹{formatMoney(spent)}
-                  </strong>
-
-                </div>
-
-                <div>
-
-                  <span>
-                    AVERAGE
-                  </span>
-
-                  <strong>
-                    ₹
-                    {formatMoney(
-                      expenses.length
-                        ? spent /
-                          expenses.length
-                        : 0
-                    )}
-                  </strong>
-
-                </div>
-
-              </div>
-
-            </article>
-
-          </div>
-
-        </section>
-
-
-        {/* ===================================
-            ADD / EDIT EXPENSE FORM
-        =================================== */}
-
-        {showExpenseForm && (
-
-          <section
-            className="travel-trip-card"
-            style={{
-              marginTop: "35px",
-            }}
-          >
-
-            <div
-              className="dashboard-section-title"
-              style={{
-                marginBottom: "25px",
-              }}
-            >
+            <div className="travel-card-header">
 
               <div>
+                <span className="trip-small-label">
+                  EXPENSES
+                </span>
+
+                <h3>
+                  {expenses.length}
+                </h3>
 
                 <p>
-                  MONEY TRACKER
+                  Recorded expenses
                 </p>
+              </div>
 
-                <h2>
-                  {editingExpense
-                    ? "Edit Expense"
-                    : "Add Expense"}
-                </h2>
-
+              <div className="travel-card-icon">
+                💸
               </div>
 
             </div>
 
+            <div className="travel-money-grid">
 
-            <form onSubmit={saveExpense}>
+              <div>
+                <span>
+                  TOTAL SPENT
+                </span>
 
-              {/* DESCRIPTION */}
-
-              <div style={fieldStyle}>
-
-                <label style={labelStyle}>
-                  What was the expense?
-                </label>
-
-                <input
-                  type="text"
-                  placeholder="e.g. Dinner at hotel"
-                  value={description}
-                  onChange={(e) =>
-                    setDescription(
-                      e.target.value
-                    )
-                  }
-                  style={inputStyle}
-                />
-
+                <strong>
+                  ₹{formatMoney(spent)}
+                </strong>
               </div>
 
+              <div>
+                <span>
+                  AVERAGE
+                </span>
 
-              {/* LOCATION */}
-
-              <div style={fieldStyle}>
-
-                <label style={labelStyle}>
-                  Where?
-                </label>
-
-                <input
-                  type="text"
-                  placeholder="e.g. Puri Beach"
-                  value={location}
-                  onChange={(e) =>
-                    setLocation(
-                      e.target.value
-                    )
-                  }
-                  style={inputStyle}
-                />
-
+                <strong>
+                  ₹
+                  {formatMoney(
+                    expenses.length
+                      ? spent /
+                        expenses.length
+                      : 0
+                  )}
+                </strong>
               </div>
 
+            </div>
 
-              {/* CATEGORY */}
+          </article>
 
-              <div style={fieldStyle}>
+        </div>
 
-                <label style={labelStyle}>
-                  Category
-                </label>
+      </section>
 
-                <select
-                  value={category}
-                  onChange={(e) => {
-                    setCategory(
-                      e.target.value
-                    );
+      {/* =====================================
+          ADD MEMBER FORM
+      ===================================== */}
 
-                    if (
-                      e.target.value !==
-                      "Transport"
-                    ) {
-                      setTransportType("");
-                    }
-                  }}
-                  style={inputStyle}
-                >
+      {showMemberForm && (
+        <section className="trip-form-card">
 
-                  <option value="Food">
-                    Food
-                  </option>
+          <div className="trip-form-header">
 
-                  <option value="Transport">
-                    Transport
-                  </option>
+            <div>
+              <p className="dashboard-eyebrow">
+                TRIP MEMBERS
+              </p>
 
-                  <option value="Hotel / Stay">
-                    Hotel / Stay
-                  </option>
+              <h2>
+                Add Member
+              </h2>
 
-                  <option value="Activities">
-                    Activities
-                  </option>
+              <p>
+                Add a person using their name.
+              </p>
+            </div>
 
-                  <option value="Shopping">
-                    Shopping
-                  </option>
+            <button
+              className="trip-close-btn"
+              onClick={closeMemberForm}
+            >
+              ×
+            </button>
 
-                  <option value="Personal">
-                    Personal
-                  </option>
+          </div>
 
-                  <option value="Medical">
-                    Medical
-                  </option>
+          <form
+            onSubmit={addMember}
+            className="member-form"
+          >
 
-                  <option value="Other">
-                    Other
-                  </option>
+            <div className="form-field">
+              <label>
+                Member name
+              </label>
 
-                </select>
+              <input
+                type="text"
+                value={memberName}
+                onChange={(e) =>
+                  setMemberName(
+                    e.target.value
+                  )
+                }
+                placeholder="e.g. Rahul"
+                autoFocus
+              />
+            </div>
 
-              </div>
+            <div className="form-actions">
 
+              <button
+                type="submit"
+                className="dashboard-create-btn"
+                disabled={savingMember}
+              >
+                {savingMember
+                  ? "Adding..."
+                  : "Add Member"}
+              </button>
 
-              {/* TRANSPORT */}
+              <button
+                type="button"
+                className="dashboard-refresh-btn"
+                onClick={closeMemberForm}
+              >
+                Cancel
+              </button>
 
-              {category === "Transport" && (
+            </div>
 
-                <div style={fieldStyle}>
+          </form>
 
-                  <label style={labelStyle}>
-                    Transport Type
+        </section>
+      )}
+
+      {/* =====================================
+          EXPENSE FORM
+      ===================================== */}
+
+      {showExpenseForm && (
+        <section className="trip-form-card">
+
+          <div className="trip-form-header">
+
+            <div>
+              <p className="dashboard-eyebrow">
+                MONEY TRACKER
+              </p>
+
+              <h2>
+                {editingExpense
+                  ? "Edit Expense"
+                  : "Add Expense"}
+              </h2>
+
+              <p>
+                Record exactly who paid and
+                how the expense is shared.
+              </p>
+            </div>
+
+            <button
+              className="trip-close-btn"
+              onClick={closeExpenseForm}
+            >
+              ×
+            </button>
+
+          </div>
+
+          {members.length === 0 ? (
+
+            <div className="form-warning">
+              <strong>
+                Add members first
+              </strong>
+
+              <p>
+                You need at least one trip
+                member before adding an expense.
+              </p>
+
+              <button
+                className="dashboard-create-btn"
+                onClick={() => {
+                  closeExpenseForm();
+                  openMemberForm();
+                }}
+              >
+                + Add Member
+              </button>
+            </div>
+
+          ) : (
+
+            <form
+              onSubmit={saveExpense}
+              className="expense-form"
+            >
+
+              {/* BASIC DETAILS */}
+
+              <div className="form-grid">
+
+                <div className="form-field">
+                  <label>
+                    What was the expense?
                   </label>
 
-                  <select
-                    value={transportType}
+                  <input
+                    type="text"
+                    value={description}
                     onChange={(e) =>
-                      setTransportType(
+                      setDescription(
                         e.target.value
                       )
                     }
-                    style={inputStyle}
+                    placeholder="e.g. Dinner at hotel"
+                  />
+                </div>
+
+                <div className="form-field">
+                  <label>
+                    Where?
+                  </label>
+
+                  <input
+                    type="text"
+                    value={location}
+                    onChange={(e) =>
+                      setLocation(
+                        e.target.value
+                      )
+                    }
+                    placeholder="e.g. Puri Beach"
+                  />
+                </div>
+
+                <div className="form-field">
+                  <label>
+                    Category
+                  </label>
+
+                  <select
+                    value={category}
+                    onChange={(e) => {
+                      const value =
+                        e.target.value;
+
+                      setCategory(value);
+
+                      if (
+                        value !==
+                        "Transport"
+                      ) {
+                        setTransportType("");
+                      }
+                    }}
                   >
-
-                    <option value="">
-                      Select transport
+                    <option value="Food">
+                      Food
                     </option>
 
-                    <option value="Train">
-                      Train
+                    <option value="Transport">
+                      Transport
                     </option>
 
-                    <option value="Bus">
-                      Bus
+                    <option value="Hotel / Stay">
+                      Hotel / Stay
                     </option>
 
-                    <option value="Taxi/Cab">
-                      Taxi/Cab
+                    <option value="Activities">
+                      Activities
                     </option>
 
-                    <option value="Car">
-                      Car
+                    <option value="Shopping">
+                      Shopping
                     </option>
 
-                    <option value="Scooty">
-                      Scooty
+                    <option value="Personal">
+                      Personal
                     </option>
 
-                    <option value="Bike">
-                      Bike
-                    </option>
-
-                    <option value="Flight">
-                      Flight
-                    </option>
-
-                    <option value="Ship/Ferry">
-                      Ship/Ferry
-                    </option>
-
-                    <option value="Auto">
-                      Auto
-                    </option>
-
-                    <option value="Metro">
-                      Metro
-                    </option>
-
-                    <option value="Bicycle">
-                      Bicycle
+                    <option value="Medical">
+                      Medical
                     </option>
 
                     <option value="Other">
                       Other
                     </option>
-
                   </select>
-
                 </div>
 
-              )}
+                <div className="form-field">
+                  <label>
+                    Amount (₹)
+                  </label>
 
+                  <input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value={amount}
+                    onChange={(e) =>
+                      setAmount(
+                        e.target.value
+                      )
+                    }
+                    placeholder="1000"
+                  />
+                </div>
 
-              {/* AMOUNT */}
+                {category ===
+                  "Transport" && (
+                  <div className="form-field">
+                    <label>
+                      Transport type
+                    </label>
 
-              <div style={fieldStyle}>
-
-                <label style={labelStyle}>
-                  Amount (₹)
-                </label>
-
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  placeholder="1000"
-                  value={amount}
-                  onChange={(e) =>
-                    setAmount(
-                      e.target.value
-                    )
-                  }
-                  style={inputStyle}
-                />
-
-              </div>
-
-
-              {/* PAID BY */}
-
-              <div style={fieldStyle}>
-
-                <label style={labelStyle}>
-                  Paid by
-                </label>
-
-                <select
-                  value={paidBy}
-                  onChange={(e) =>
-                    setPaidBy(
-                      e.target.value
-                    )
-                  }
-                  style={inputStyle}
-                >
-
-                  <option value="">
-                    Select member
-                  </option>
-
-                  {members.map(
-                    (member) => (
-
-                      <option
-                        key={member.id}
-                        value={
-                          member.member_name
-                        }
-                      >
-                        {
-                          member.member_name
-                        }
+                    <select
+                      value={transportType}
+                      onChange={(e) =>
+                        setTransportType(
+                          e.target.value
+                        )
+                      }
+                    >
+                      <option value="">
+                        Select transport
                       </option>
 
-                    )
-                  )}
+                      <option value="Train">
+                        Train
+                      </option>
 
-                </select>
+                      <option value="Bus">
+                        Bus
+                      </option>
+
+                      <option value="Taxi/Cab">
+                        Taxi/Cab
+                      </option>
+
+                      <option value="Car">
+                        Car
+                      </option>
+
+                      <option value="Scooty">
+                        Scooty
+                      </option>
+
+                      <option value="Bike">
+                        Bike
+                      </option>
+
+                      <option value="Flight">
+                        Flight
+                      </option>
+
+                      <option value="Ship/Ferry">
+                        Ship/Ferry
+                      </option>
+
+                      <option value="Auto">
+                        Auto
+                      </option>
+
+                      <option value="Metro">
+                        Metro
+                      </option>
+
+                      <option value="Bicycle">
+                        Bicycle
+                      </option>
+
+                      <option value="Other">
+                        Other
+                      </option>
+                    </select>
+                  </div>
+                )}
+
+                <div className="form-field">
+                  <label>
+                    Paid by
+                  </label>
+
+                  <select
+                    value={paidBy}
+                    onChange={(e) =>
+                      setPaidBy(
+                        e.target.value
+                      )
+                    }
+                  >
+                    <option value="">
+                      Select member
+                    </option>
+
+                    {members.map(
+                      (member) => (
+                        <option
+                          key={member.id}
+                          value={
+                            member.member_name
+                          }
+                        >
+                          {
+                            member.member_name
+                          }
+                        </option>
+                      )
+                    )}
+                  </select>
+                </div>
 
               </div>
-
 
               {/* SPLIT TYPE */}
 
-              <div style={fieldStyle}>
-
-                <label style={labelStyle}>
+              <div className="form-field">
+                <label>
                   Split type
                 </label>
 
@@ -1380,235 +1752,270 @@ function TripDetails() {
                       e.target.value
                     )
                   }
-                  style={inputStyle}
                 >
-
                   <option value="equal">
                     Equal
                   </option>
 
                   <option value="custom">
-                    Custom
+                    Custom amount
                   </option>
 
                   <option value="percentage">
                     Percentage
                   </option>
-
                 </select>
-
-                {splitType !== "equal" && (
-
-                  <p
-                    style={{
-                      color: "#fbbf24",
-                      fontSize: "12px",
-                      marginTop: "8px",
-                    }}
-                  >
-                    Currently this version
-                    uses equal amounts.
-                    Custom and percentage
-                    editing can be added next.
-                  </p>
-
-                )}
-
               </div>
-
 
               {/* SHARED WITH */}
 
-              <div style={fieldStyle}>
+              <div className="form-field">
 
-                <label style={labelStyle}>
+                <label>
                   Shared with
                 </label>
 
-                <p
-                  style={{
-                    color: "#94a3b8",
-                    fontSize: "12px",
-                    marginBottom: "10px",
-                  }}
-                >
-                  Select the people who should
-                  share this expense.
+                <p className="field-help">
+                  Select the people who
+                  should share this expense.
                 </p>
 
+                <div className="member-select-grid">
 
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns:
-                      "repeat(auto-fit, minmax(180px, 1fr))",
-                    gap: "10px",
-                  }}
-                >
+                  {members.map((member) => {
 
-                  {members.map(
-                    (member) => {
-
-                      const selected =
-                        sharedWith.includes(
-                          member.member_name
-                        );
-
-                      return (
-
-                        <button
-                          type="button"
-                          key={member.id}
-                          onClick={() =>
-                            toggleSharedMember(
-                              member.member_name
-                            )
-                          }
-                          style={{
-                            padding:
-                              "12px 14px",
-                            borderRadius:
-                              "10px",
-                            border:
-                              selected
-                                ? "1px solid #60a5fa"
-                                : "1px solid rgba(255,255,255,0.15)",
-                            background:
-                              selected
-                                ? "rgba(37,99,235,0.25)"
-                                : "rgba(255,255,255,0.05)",
-                            color:
-                              selected
-                                ? "white"
-                                : "#cbd5e1",
-                            cursor: "pointer",
-                            textAlign:
-                              "left",
-                          }}
-                        >
-
-                          {selected
-                            ? "☑"
-                            : "☐"}{" "}
-                          {
-                            member.member_name
-                          }
-
-                        </button>
-
+                    const selected =
+                      sharedWith.includes(
+                        member.member_name
                       );
-                    }
-                  )}
+
+                    return (
+                      <button
+                        type="button"
+                        key={member.id}
+                        className={
+                          selected
+                            ? "shared-member selected"
+                            : "shared-member"
+                        }
+                        onClick={() =>
+                          toggleSharedMember(
+                            member.member_name
+                          )
+                        }
+                      >
+                        <span>
+                          {selected
+                            ? "✓"
+                            : "+"}
+                        </span>
+
+                        {
+                          member.member_name
+                        }
+                      </button>
+                    );
+                  })}
 
                 </div>
 
-
-                {amount &&
-                  sharedWith.length > 0 && (
-
-                    <div
-                      style={{
-                        marginTop: "15px",
-                        padding: "15px",
-                        borderRadius: "12px",
-                        background:
-                          "rgba(34,197,94,0.10)",
-                        border:
-                          "1px solid rgba(34,197,94,0.2)",
-                      }}
-                    >
-
-                      <span
-                        style={{
-                          color:
-                            "#94a3b8",
-                          fontSize: "11px",
-                        }}
-                      >
-                        EACH PERSON PAYS
-                      </span>
-
-                      <strong
-                        style={{
-                          display:
-                            "block",
-                          color:
-                            "#86efac",
-                          fontSize:
-                            "24px",
-                          marginTop:
-                            "4px",
-                        }}
-                      >
-                        ₹
-                        {formatMoney(
-                          Number(amount) /
-                            sharedWith.length
-                        )}
-                      </strong>
-
-                      <small
-                        style={{
-                          color:
-                            "#cbd5e1",
-                        }}
-                      >
-                        ₹
-                        {formatMoney(
-                          Number(amount)
-                        )}{" "}
-                        ÷{" "}
-                        {sharedWith.length}{" "}
-                        member
-                        {sharedWith.length !==
-                        1
-                          ? "s"
-                          : ""}
-                      </small>
-
-                    </div>
-
-                  )}
-
               </div>
 
+              {/* CUSTOM / PERCENTAGE */}
+
+              {sharedWith.length > 0 && (
+                <div className="split-editor">
+
+                  <div className="split-editor-title">
+                    Split details
+                  </div>
+
+                  {sharedWith.map(
+                    (name) => (
+                      <div
+                        className="split-row"
+                        key={name}
+                      >
+
+                        <div className="split-person">
+                          <span className="member-avatar">
+                            {name
+                              .charAt(0)
+                              .toUpperCase()}
+                          </span>
+
+                          {name}
+                        </div>
+
+                        {splitType ===
+                          "equal" && (
+                          <strong>
+                            ₹
+                            {formatMoney(
+                              Number(amount) /
+                                sharedWith.length
+                            )}
+                          </strong>
+                        )}
+
+                        {splitType ===
+                          "custom" && (
+                          <div className="split-input">
+                            <span>
+                              ₹
+                            </span>
+
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={
+                                customAmounts[
+                                  name
+                                ] ??
+                                ""
+                              }
+                              onChange={(e) =>
+                                setCustomAmounts(
+                                  (
+                                    current
+                                  ) => ({
+                                    ...current,
+                                    [name]:
+                                      e.target
+                                        .value,
+                                  })
+                                )
+                              }
+                            />
+                          </div>
+                        )}
+
+                        {splitType ===
+                          "percentage" && (
+                          <div className="split-input">
+                            <input
+                              type="number"
+                              min="0"
+                              max="100"
+                              step="0.01"
+                              value={
+                                customPercentages[
+                                  name
+                                ] ??
+                                ""
+                              }
+                              onChange={(e) =>
+                                setCustomPercentages(
+                                  (
+                                    current
+                                  ) => ({
+                                    ...current,
+                                    [name]:
+                                      e.target
+                                        .value,
+                                  })
+                                )
+                              }
+                            />
+
+                            <span>
+                              %
+                            </span>
+                          </div>
+                        )}
+
+                      </div>
+                    )
+                  )}
+
+                  {amount &&
+                    splitType ===
+                      "custom" && (
+                      <div className="split-total">
+                        <span>
+                          Custom total
+                        </span>
+
+                        <strong>
+                          ₹
+                          {formatMoney(
+                            sharedWith.reduce(
+                              (
+                                total,
+                                name
+                              ) =>
+                                total +
+                                Number(
+                                  customAmounts[
+                                    name
+                                  ] || 0
+                                ),
+                              0
+                            )
+                          )}
+                          {" / ₹"}
+                          {formatMoney(
+                            amount
+                          )}
+                        </strong>
+                      </div>
+                    )}
+
+                  {amount &&
+                    splitType ===
+                      "percentage" && (
+                      <div className="split-total">
+                        <span>
+                          Percentage total
+                        </span>
+
+                        <strong>
+                          {formatMoney(
+                            sharedWith.reduce(
+                              (
+                                total,
+                                name
+                              ) =>
+                                total +
+                                Number(
+                                  customPercentages[
+                                    name
+                                  ] || 0
+                                ),
+                              0
+                            )
+                          )}
+                          %
+                        </strong>
+                      </div>
+                    )}
+
+                </div>
+              )}
 
               {/* NOTE */}
 
-              <div style={fieldStyle}>
-
-                <label style={labelStyle}>
+              <div className="form-field">
+                <label>
                   Note
                 </label>
 
                 <textarea
-                  placeholder="Optional note"
+                  rows="3"
                   value={note}
                   onChange={(e) =>
                     setNote(
                       e.target.value
                     )
                   }
-                  rows="3"
-                  style={{
-                    ...inputStyle,
-                    resize: "vertical",
-                  }}
+                  placeholder="Optional note"
                 />
-
               </div>
 
+              {/* BUTTONS */}
 
-              {/* FORM BUTTONS */}
-
-              <div
-                style={{
-                  display: "flex",
-                  gap: "12px",
-                  marginTop: "20px",
-                  flexWrap: "wrap",
-                }}
-              >
+              <div className="form-actions">
 
                 <button
                   type="submit"
@@ -1622,16 +2029,12 @@ function TripDetails() {
                     : "Add Expense"}
                 </button>
 
-
                 <button
                   type="button"
                   className="dashboard-refresh-btn"
-                  onClick={() => {
-                    resetForm();
-                    setShowExpenseForm(
-                      false
-                    );
-                  }}
+                  onClick={
+                    closeExpenseForm
+                  }
                 >
                   Cancel
                 </button>
@@ -1639,88 +2042,80 @@ function TripDetails() {
               </div>
 
             </form>
+          )}
+
+        </section>
+      )}
+
+      {/* =====================================
+          EXPENSES
+      ===================================== */}
+
+      <section className="dashboard-trips trip-expenses-section">
+
+        <div className="dashboard-section-title">
+
+          <div>
+            <p>
+              MONEY TRACKER
+            </p>
+
+            <h2>
+              Trip Expenses
+            </h2>
+          </div>
+
+          <span>
+            {expenses.length}{" "}
+            {expenses.length === 1
+              ? "Expense"
+              : "Expenses"}
+          </span>
+
+        </div>
+
+        {expenses.length === 0 ? (
+
+          <section className="dashboard-empty glass-card">
+
+            <div className="empty-trip-icon">
+              💸
+            </div>
+
+            <h2>
+              No expenses yet
+            </h2>
+
+            <p>
+              Add your first expense to
+              start tracking your trip.
+            </p>
+
+            <button
+              className="dashboard-create-btn"
+              onClick={
+                openAddExpense
+              }
+            >
+              + Add Expense
+            </button>
 
           </section>
 
-        )}
+        ) : (
 
+          <div className="travel-trip-grid">
 
-        {/* ===================================
-            EXPENSES
-        =================================== */}
-
-        <section
-          className="dashboard-trips"
-          style={{
-            marginTop: "40px",
-          }}
-        >
-
-          <div className="dashboard-section-title">
-
-            <div>
-
-              <p>
-                MONEY TRACKER
-              </p>
-
-              <h2>
-                Trip Expenses
-              </h2>
-
-            </div>
-
-            <span>
-              {expenses.length}{" "}
-              {expenses.length === 1
-                ? "Expense"
-                : "Expenses"}
-            </span>
-
-          </div>
-
-
-          {expenses.length === 0 ? (
-
-            <section className="dashboard-empty glass-card">
-
-              <div className="empty-trip-icon">
-                💸
-              </div>
-
-              <h2>
-                No expenses yet
-              </h2>
-
-              <p>
-                Click "Add Expense" to record
-                your first trip expense.
-              </p>
-
-              <button
-                className="dashboard-create-btn"
-                onClick={openAddExpense}
-              >
-                + Add Expense
-              </button>
-
-            </section>
-
-          ) : (
-
-            <div className="travel-trip-grid">
-
-              {expenses.map((expense) => (
-
+            {expenses.map(
+              (expense) => (
                 <article
-                  className="travel-trip-card"
+                  className="travel-trip-card expense-card"
                   key={expense.id}
                 >
 
                   <div className="travel-card-header">
 
                     <div>
-
                       <span className="trip-small-label">
                         {expense.category ||
                           "OTHER"}
@@ -1738,7 +2133,6 @@ function TripDetails() {
                           {expense.location}
                         </p>
                       )}
-
                     </div>
 
                     <div className="travel-card-icon">
@@ -1747,11 +2141,9 @@ function TripDetails() {
 
                   </div>
 
-
                   <div className="travel-money-grid">
 
                     <div>
-
                       <span>
                         AMOUNT
                       </span>
@@ -1762,176 +2154,111 @@ function TripDetails() {
                           expense.amount
                         )}
                       </strong>
-
                     </div>
 
                     <div>
-
                       <span>
                         PAID BY
                       </span>
 
-                      <strong>
+                      <strong className="paid-by-name">
                         {expense.paid_by ||
                           "-"}
                       </strong>
-
                     </div>
 
                   </div>
 
-
                   {expense.transport_type && (
-
                     <div className="travel-date">
-
                       🚗{" "}
                       {expense.transport_type}
-
                     </div>
-
                   )}
 
-
                   <div className="travel-date">
-
                     👥 Split:{" "}
                     {expense.split_type ||
                       "equal"}
-
                   </div>
 
+                  {expense.splits?.length >
+                    0 && (
+                    <div className="expense-splits">
 
-                  {/* SPLIT DETAILS */}
+                      <span className="split-heading">
+                        SHARED WITH
+                      </span>
 
-                  {expense.splits &&
-                    expense.splits.length >
-                      0 && (
+                      {expense.splits.map(
+                        (split) => (
+                          <div
+                            className="expense-split-line"
+                            key={split.id}
+                          >
+                            <span>
+                              👤{" "}
+                              {
+                                split.member_name
+                              }
+                            </span>
 
-                      <div
-                        style={{
-                          marginTop: "15px",
-                          paddingTop: "15px",
-                          borderTop:
-                            "1px solid rgba(255,255,255,0.1)",
-                        }}
-                      >
+                            <strong>
+                              ₹
+                              {formatMoney(
+                                split.amount
+                              )}
 
-                        <span
-                          style={{
-                            color:
-                              "#94a3b8",
-                            fontSize:
-                              "10px",
-                            fontWeight:
-                              "800",
-                            letterSpacing:
-                              "1px",
-                          }}
-                        >
-                          SHARED WITH
-                        </span>
-
-
-                        {expense.splits.map(
-                          (split) => (
-
-                            <div
-                              key={split.id}
-                              style={{
-                                display:
-                                  "flex",
-                                justifyContent:
-                                  "space-between",
-                                padding:
-                                  "8px 0",
-                                color:
-                                  "#dbeafe",
-                                fontSize:
-                                  "13px",
-                              }}
-                            >
-
-                              <span>
-                                👤{" "}
-                                {
-                                  split.member_name
-                                }
-                              </span>
-
-                              <strong>
-                                ₹
-                                {formatMoney(
-                                  split.amount
+                              {expense.split_type ===
+                                "percentage" &&
+                                split.percentage !=
+                                  null && (
+                                  <small>
+                                    {" "}
+                                    (
+                                    {
+                                      split.percentage
+                                    }
+                                    %)
+                                  </small>
                                 )}
-                              </strong>
-
-                            </div>
-
-                          )
-                        )}
-
-                      </div>
-
-                    )}
-
-
-                  {expense.note && (
-
-                    <div className="travel-date">
-
-                      📝{" "}
-                      {expense.note}
+                            </strong>
+                          </div>
+                        )
+                      )}
 
                     </div>
-
                   )}
 
+                  {expense.note && (
+                    <div className="travel-date">
+                      📝{" "}
+                      {expense.note}
+                    </div>
+                  )}
 
-                  {/* EDIT DELETE */}
-
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: "10px",
-                      marginTop: "18px",
-                    }}
-                  >
+                  <div className="expense-actions">
 
                     <button
                       type="button"
+                      className="dashboard-refresh-btn"
                       onClick={() =>
                         openEditExpense(
                           expense
                         )
                       }
-                      className="dashboard-refresh-btn"
-                      style={{
-                        flex: 1,
-                      }}
                     >
                       ✏️ Edit
                     </button>
 
                     <button
                       type="button"
+                      className="expense-delete-btn"
                       onClick={() =>
                         deleteExpense(
-                          expense.id
+                          expense
                         )
                       }
-                      style={{
-                        flex: 1,
-                        padding: "10px 15px",
-                        borderRadius: "9px",
-                        border:
-                          "1px solid rgba(239,68,68,0.4)",
-                        background:
-                          "rgba(239,68,68,0.12)",
-                        color: "#fca5a5",
-                        fontWeight: "700",
-                        cursor: "pointer",
-                      }}
                     >
                       🗑 Delete
                     </button>
@@ -1939,70 +2266,49 @@ function TripDetails() {
                   </div>
 
                 </article>
+              )
+            )}
 
-              ))}
+          </div>
 
-            </div>
+        )}
 
-          )}
+      </section>
 
-        </section>
+      {/* BACK */}
 
-
-        {/* BACK */}
-
-        <div
-          style={{
-            marginTop: "45px",
-            textAlign: "center",
-          }}
-        >
-
-          <Link to="/dashboard">
-
-            <button className="dashboard-refresh-btn">
-              ← Back to Dashboard
-            </button>
-
-          </Link>
-
-        </div>
-
+      <div className="trip-back-button">
+        <Link to="/dashboard">
+          <button className="dashboard-refresh-btn">
+            ← Back to Dashboard
+          </button>
+        </Link>
       </div>
 
-    </div>
+    </TripShell>
   );
 }
 
-
 // =========================================
-// FORM STYLES
+// PAGE SHELL
 // =========================================
 
-const fieldStyle = {
-  marginBottom: "18px",
-};
+function TripShell({ children }) {
+  return (
+    <div
+      className="travel-dashboard trip-details-page"
+      style={{
+        backgroundImage:
+          `url(${landingPage})`,
+      }}
+    >
+      <div className="dashboard-overlay"></div>
 
-const labelStyle = {
-  display: "block",
-  marginBottom: "8px",
-  color: "#dbeafe",
-  fontSize: "13px",
-  fontWeight: "700",
-};
-
-const inputStyle = {
-  width: "100%",
-  boxSizing: "border-box",
-  padding: "13px 14px",
-  borderRadius: "10px",
-  border:
-    "1px solid rgba(255,255,255,0.18)",
-  background:
-    "rgba(255,255,255,0.07)",
-  color: "white",
-  outline: "none",
-  fontSize: "14px",
-};
+      <div className="dashboard-content">
+        {children}
+      </div>
+    </div>
+  );
+}
 
 export default TripDetails;
