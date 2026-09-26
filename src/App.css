@@ -2225,11 +2225,17 @@ a {
 /* =========================================
    ADD EXPENSE INPUTS ONLY
 ========================================= */
+/* =========================================
+   ADD EXPENSE FORM ONLY
+========================================= */
 
-.trip-form-card input[type="text"],
-.trip-form-card input[type="number"],
-.trip-form-card textarea,
-.trip-form-card select {
+.trip-form-card .form-field label {
+  color: #dbeafe !important;
+}
+
+.trip-form-card .form-field input,
+.trip-form-card .form-field select,
+.trip-form-card .form-field textarea {
   color: #111111 !important;
   background: #ffffff !important;
   background-color: #ffffff !important;
@@ -2238,16 +2244,29 @@ a {
   caret-color: #111111 !important;
 }
 
-.trip-form-card input[type="text"]::placeholder,
-.trip-form-card input[type="number"]::placeholder,
-.trip-form-card textarea::placeholder {
+.trip-form-card .form-field input::placeholder,
+.trip-form-card .form-field textarea::placeholder {
   color: #777777 !important;
   -webkit-text-fill-color: #777777 !important;
   opacity: 1 !important;
 }
 
-/* Dropdown options */
-.trip-form-card select option {
-  background: #ffffff !important;
+.trip-form-card .form-field select option {
   color: #111111 !important;
+  background: #ffffff !important;
+}
+
+/* Amount, description and location */
+.trip-form-card input[type="text"],
+.trip-form-card input[type="number"] {
+  color: #111111 !important;
+  background: #ffffff !important;
+  -webkit-text-fill-color: #111111 !important;
+}
+
+/* Notes */
+.trip-form-card textarea {
+  color: #111111 !important;
+  background: #ffffff !important;
+  -webkit-text-fill-color: #111111 !important;
 }
