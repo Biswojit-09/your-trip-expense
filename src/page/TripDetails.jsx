@@ -1405,27 +1405,32 @@ const deleteMember = async (member) => {
 
           </div>
 
-          <form
-            onSubmit={addMember}
-            className="member-form"
-          >
+         <form
+  onSubmit={addMember}
+  className="member-form"
+  style={{
+    color: "#111111",
+  }}
+>
 
             <div className="form-field">
               <label>
                 Member name
               </label>
 
-              <input
-                type="text"
-                value={memberName}
-                onChange={(e) =>
-                  setMemberName(
-                    e.target.value
-                  )
-                }
-                placeholder="e.g. Rahul"
-                autoFocus
-              />
+<input
+  type="text"
+  value={memberName}
+  onChange={(e) => setMemberName(e.target.value)}
+  placeholder="e.g. Rahul"
+  autoFocus
+  style={{
+    color: "black",
+    backgroundColor: "white",
+    WebkitTextFillColor: "black",
+    opacity: 1,
+  }}
+/>
             </div>
 
             <div className="form-actions">

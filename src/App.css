@@ -2205,3 +2205,114 @@ a {
   }
 
 }
+/* =========================================
+   TRIP DETAILS TEXT VISIBILITY FIX
+   ========================================= */
+
+.trip-details-page {
+  color: #111111;
+}
+
+.trip-details-page h1,
+.trip-details-page h2,
+.trip-details-page h3,
+.trip-details-page h4,
+.trip-details-page p,
+.trip-details-page label,
+.trip-details-page span {
+  color: #111111;
+}
+
+.trip-details-page .dashboard-nav,
+.trip-details-page .dashboard-nav a,
+.trip-details-page .dashboard-logo,
+.trip-details-page .dashboard-nav-label {
+  color: #ffffff;
+}
+
+.trip-details-page .dashboard-hero h1,
+.trip-details-page .dashboard-hero p {
+  color: #ffffff;
+}
+
+.trip-details-page input,
+.trip-details-page select,
+.trip-details-page textarea {
+  color: #111111;
+  background: #ffffff;
+}
+
+.trip-details-page input::placeholder,
+.trip-details-page textarea::placeholder {
+  color: #777777;
+}
+
+.trip-details-page .travel-trip-card,
+.trip-details-page .trip-form-card,
+.trip-details-page .members-card,
+.trip-details-page .expense-card {
+  color: #111111;
+  background: rgba(255, 255, 255, 0.96);
+}
+
+.trip-details-page .travel-trip-card h3,
+.trip-details-page .travel-trip-card p,
+.trip-details-page .trip-form-card h2,
+.trip-details-page .trip-form-card p,
+.trip-details-page .trip-form-card label,
+.trip-details-page .members-card h2,
+.trip-details-page .members-card p,
+.trip-details-page .expense-card h3,
+.trip-details-page .expense-card p,
+.trip-details-page .member-row span {
+  color: #111111;
+}
+
+.trip-details-page button {
+  color: #111111;
+}
+
+.trip-details-page .dashboard-create-btn,
+.trip-details-page .add-member-btn,
+.trip-details-page .primary-btn {
+  color: #ffffff;
+}
+
+.trip-details-page .member-delete-btn {
+  color: #ffffff;
+}
+/* Fix input text visibility */
+.trip-details-page input,
+.trip-details-page select,
+.trip-details-page textarea {
+  color: #111 !important;
+  background-color: #ffffff !important;
+  caret-color: #111 !important;
+}
+
+.trip-details-page input::placeholder,
+.trip-details-page textarea::placeholder {
+  color: #777 !important;
+  opacity: 1;
+}
+/* FINAL INPUT TEXT FIX */
+
+.member-form .form-field input[type="text"] {
+  color: #000000 !important;
+  background-color: #ffffff !important;
+  -webkit-text-fill-color: #000000 !important;
+  opacity: 1 !important;
+  font-size: 16px !important;
+}
+
+.member-form .form-field input[type="text"]:focus {
+  color: #000000 !important;
+  background-color: #ffffff !important;
+  -webkit-text-fill-color: #000000 !important;
+}
+
+.member-form .form-field input[type="text"]::placeholder {
+  color: #777777 !important;
+  -webkit-text-fill-color: #777777 !important;
+  opacity: 1 !important;
+}
