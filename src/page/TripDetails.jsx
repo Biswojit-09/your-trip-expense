@@ -1,6 +1,9 @@
-import { useState } from "react";
+
+console.log("NEW TRIP DETAILS COMPONENT IS RUNNING");
+import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { supabase } from "../supabaseClient";
+import landingPage from "../assets/Landing-page.png";
 
 function TripDetails() {
   const { tripId } = useParams();
@@ -9,1184 +12,991 @@ function TripDetails() {
   const [members, setMembers] = useState([]);
   const [expenses, setExpenses] = useState([]);
 
-  const [loading, setLoading] = useState(false);
-  const [loaded, setLoaded] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  const [memberName, setMemberName] = useState("");
-  const [addingMember, setAddingMember] = useState(false);
+  // =========================================
+  // LOAD TRIP AUTOMATICALLY
+  // =========================================
 
-  const [showExpenseForm, setShowExpenseForm] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
 
-  const [location, setLocation] = useState("");
-  const [category, setCategory] = useState("");
-  const [transportType, setTransportType] = useState("");
-  const [amount, setAmount] = useState("");
-  const [paidBy, setPaidBy] = useState("");
-  const [sharedWith, setSharedWith] = useState([]);
-  const [splitType, setSplitType] = useState("equal");
-  const [note, setNote] = useState("");
-  const [splitValues, setSplitValues] = useState({});
-  const [savingExpense, setSavingExpense] = useState(false);
-
-  // --------------------------------
-  // LOAD TRIP
-  // --------------------------------
-
-  async function getTrip() {
-    try {
-      setLoading(true);
-
-      const {
-        data: { user },
-        error: userError
-      } = await supabase.auth.getUser();
-
-      console.log("CURRENT USER:", user);
-      console.log("CURRENT USER ID:", user?.id);
-
-      if (userError) {
-        console.error("USER ERROR:", userError);
-        alert(userError.message);
+    const fetchTrip = async () => {
+      if (!tripId) {
+        setError("Trip ID is missing.");
+        setLoading(false);
         return;
       }
 
-      if (!user) {
-        alert("Please login first.");
-        return;
-      }
+      try {
+        // ================================
+        // GET TRIP
+        // ================================
 
-      // Get trip
-      const {
-        data: tripData,
-        error: tripError
-      } = await supabase
-        .from("trips")
-        .select("*")
-        .eq("id", tripId)
-        .single();
+        const {
+          data: tripData,
+          error: tripError,
+        } = await supabase
+          .from("trips")
+          .select("*")
+          .eq("id", tripId)
+          .single();
 
-      if (tripError) {
-        console.error("TRIP ERROR:", tripError);
-        alert(tripError.message);
-        return;
-      }
+        if (tripError) {
+          throw tripError;
+        }
 
-      console.log("TRIP DATA:", tripData);
-      console.log("TRIP OWNER:", tripData.created_by);
-      console.log("LOGGED USER:", user.id);
+        if (cancelled) return;
 
-      setTrip(tripData);
+        setTrip(tripData);
 
-      // Get members
-      const {
-        data: memberData,
-        error: memberError
-      } = await supabase
-        .from("trip_members")
-        .select("*")
-        .eq("trip_id", tripId);
+        // ================================
+        // GET MEMBERS
+        // ================================
 
-      if (memberError) {
-        console.error("MEMBER ERROR:", memberError);
-      } else {
+        const {
+          data: memberData,
+          error: memberError,
+        } = await supabase
+          .from("trip_members")
+          .select("*")
+          .eq("trip_id", tripId)
+          .order("joined_at", {
+            ascending: true,
+          });
+
+        if (memberError) {
+          console.error(
+            "Member loading error:",
+            memberError
+          );
+        }
+
+        if (cancelled) return;
+
         setMembers(memberData || []);
-      }
 
-      // Get expenses
-      const {
-        data: expenseData,
-        error: expenseError
-      } = await supabase
-        .from("expenses")
-        .select("*")
-        .eq("trip_id", tripId)
-        .order("created_at", {
-          ascending: false
-        });
-
-      if (expenseError) {
-        console.error("EXPENSE LOAD ERROR:", expenseError);
-      } else {
-        setExpenses(expenseData || []);
-      }
-
-      setLoaded(true);
-
-    } catch (error) {
-      console.error("GET TRIP ERROR:", error);
-      alert(error.message);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  // --------------------------------
-  // ADD MEMBER
-  // --------------------------------
-
-  async function addMember(e) {
-    e.preventDefault();
-
-    const name = memberName.trim();
-
-    if (!name) {
-      alert("Please enter member name.");
-      return;
-    }
-
-    try {
-      setAddingMember(true);
-
-      const {
-        data: { user }
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        alert("Please login first.");
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from("trip_members")
-        .insert([
-          {
-            trip_id: tripId,
-            member_name: name
-          }
-        ])
-        .select()
-        .single();
-
-      if (error) {
-        console.error("ADD MEMBER ERROR:", error);
-        alert(error.message);
-        return;
-      }
-
-      setMembers((prev) => [...prev, data]);
-      setMemberName("");
-
-      alert("Member added successfully!");
-
-    } catch (error) {
-      console.error(error);
-      alert(error.message);
-    } finally {
-      setAddingMember(false);
-    }
-  }
-
-  // --------------------------------
-  // SHARED MEMBERS
-  // --------------------------------
-
-  function toggleSharedMember(name) {
-    setSharedWith((prev) => {
-      if (prev.includes(name)) {
-        return prev.filter(
-          (member) => member !== name
-        );
-      }
-
-      return [...prev, name];
-    });
-  }
-
-  // --------------------------------
-  // SPLIT VALUE
-  // --------------------------------
-
-  function updateSplitValue(name, value) {
-    setSplitValues((prev) => ({
-      ...prev,
-      [name]: value
-    }));
-  }
-
-  // --------------------------------
-  // SPLIT TYPE
-  // --------------------------------
-
-  function handleSplitTypeChange(type) {
-    setSplitType(type);
-    setSplitValues({});
-  }
-
-  // --------------------------------
-  // ADD EXPENSE
-  // --------------------------------
-
-  async function addExpense(e) {
-    e.preventDefault();
-
-    console.log(
-      "========== ADD EXPENSE START =========="
-    );
-
-    try {
-      setSavingExpense(true);
-
-      const {
-        data: { user },
-        error: userError
-      } = await supabase.auth.getUser();
-
-      console.log("CURRENT USER:", user);
-      console.log(
-        "CURRENT USER ID:",
-        user?.id
-      );
-
-      if (userError) {
-        console.error(
-          "USER ERROR:",
-          userError
-        );
-
-        alert(
-          "User error: " +
-          userError.message
-        );
-
-        return;
-      }
-
-      if (!user) {
-        alert("Please login first.");
-        return;
-      }
-
-      // Check trip owner
-      const {
-        data: currentTrip,
-        error: currentTripError
-      } = await supabase
-        .from("trips")
-        .select("*")
-        .eq("id", tripId)
-        .single();
-
-      if (currentTripError) {
-        console.error(
-          "CURRENT TRIP ERROR:",
-          currentTripError
-        );
-
-        alert(
-          "Could not load trip:\n" +
-          currentTripError.message
-        );
-
-        return;
-      }
-
-      console.log(
-        "CURRENT TRIP:",
-        currentTrip
-      );
-
-      console.log(
-        "TRIP CREATED BY:",
-        currentTrip.created_by
-      );
-
-      console.log(
-        "DO USER AND OWNER MATCH?",
-        user.id === currentTrip.created_by
-      );
-
-      // Validation
-      if (!location.trim()) {
-        alert(
-          "Please enter where the money was spent."
-        );
-        return;
-      }
-
-      if (!category) {
-        alert("Please select a category.");
-        return;
-      }
-
-      if (!amount || Number(amount) <= 0) {
-        alert("Please enter a valid amount.");
-        return;
-      }
-
-      if (!paidBy) {
-        alert("Please select who paid.");
-        return;
-      }
-
-      if (sharedWith.length === 0) {
-        alert(
-          "Please select at least one member."
-        );
-        return;
-      }
-
-      const numericAmount = Number(amount);
-
-      // --------------------------------
-      // CREATE SPLITS
-      // --------------------------------
-
-      let splits = [];
-
-      if (splitType === "equal") {
-        const eachAmount =
-          Math.round(
-            (numericAmount /
-              sharedWith.length) *
-              100
-          ) / 100;
-
-        const eachPercentage =
-          Math.round(
-            (100 /
-              sharedWith.length) *
-              100
-          ) / 100;
-
-        splits = sharedWith.map(
-          (name) => ({
-            member_name: name,
-            amount: eachAmount,
-            percentage: eachPercentage
-          })
-        );
-
-      } else if (splitType === "custom") {
-        let total = 0;
-
-        splits = sharedWith.map(
-          (name) => {
-            const value = Number(
-              splitValues[name] || 0
-            );
-
-            total += value;
-
-            return {
-              member_name: name,
-              amount: value,
-              percentage: null
-            };
-          }
-        );
-
-        if (
-          Math.abs(
-            total - numericAmount
-          ) > 0.01
-        ) {
-          alert(
-            `Custom split total must equal ₹${numericAmount}.\n\nCurrent total: ₹${total}`
-          );
-
-          return;
-        }
-
-      } else if (
-        splitType === "percentage"
-      ) {
-        let totalPercentage = 0;
-
-        splits = sharedWith.map(
-          (name) => {
-            const percentage =
-              Number(
-                splitValues[name] || 0
-              );
-
-            totalPercentage += percentage;
-
-            const memberAmount =
-              Math.round(
-                (
-                  numericAmount *
-                  percentage /
-                  100
-                ) * 100
-              ) / 100;
-
-            return {
-              member_name: name,
-              amount: memberAmount,
-              percentage
-            };
-          }
-        );
-
-        if (
-          Math.abs(
-            totalPercentage - 100
-          ) > 0.01
-        ) {
-          alert(
-            `Percentage split must equal 100%.\n\nCurrent total: ${totalPercentage}%`
-          );
-
-          return;
-        }
-      }
-
-      console.log(
-        "SPLITS:",
-        splits
-      );
-
-      // --------------------------------
-      // INSERT EXPENSE
-      // --------------------------------
-
-      const expenseData = {
-        trip_id: tripId,
-        description: note || null,
-        location: location.trim(),
-        category,
-        transport_type:
-          category === "Transport"
-            ? transportType || null
-            : null,
-        amount: numericAmount,
-        paid_by: paidBy,
-        split_type: splitType,
-        note: note || null
-      };
-
-      console.log(
-        "EXPENSE DATA:",
-        expenseData
-      );
-
-      const {
-        data: newExpense,
-        error: expenseError
-      } = await supabase
-        .from("expenses")
-        .insert([expenseData])
-        .select()
-        .single();
-
-      if (expenseError) {
-        console.error(
-          "EXPENSE INSERT ERROR:",
-          expenseError
-        );
-
-        alert(
-          "EXPENSE ERROR:\n\n" +
-          expenseError.message +
-          "\n\nCode: " +
-          expenseError.code
-        );
-
-        return;
-      }
-
-      console.log(
-        "EXPENSE CREATED:",
-        newExpense
-      );
-
-      // --------------------------------
-      // INSERT SPLITS
-      // --------------------------------
-
-      const splitRows =
-        splits.map((split) => ({
-          expense_id:
-            newExpense.id,
-          member_name:
-            split.member_name,
-          amount: split.amount,
-          percentage:
-            split.percentage
-        }));
-
-      const {
-        data: insertedSplits,
-        error: splitError
-      } = await supabase
-        .from("expense_splits")
-        .insert(splitRows)
-        .select();
-
-      if (splitError) {
-        console.error(
-          "SPLIT INSERT ERROR:",
-          splitError
-        );
-
-        await supabase
+        // ================================
+        // GET EXPENSES
+        // ================================
+
+        const {
+          data: expenseData,
+          error: expenseError,
+        } = await supabase
           .from("expenses")
-          .delete()
-          .eq(
-            "id",
-            newExpense.id
-          );
+          .select("*")
+          .eq("trip_id", tripId)
+          .order("created_at", {
+            ascending: false,
+          });
 
-        alert(
-          "SPLIT ERROR:\n\n" +
-          splitError.message +
-          "\n\nCode: " +
-          splitError.code
+        if (expenseError) {
+          console.error(
+            "Expense loading error:",
+            expenseError
+          );
+        }
+
+        if (cancelled) return;
+
+        setExpenses(expenseData || []);
+
+      } catch (err) {
+        console.error(
+          "Trip loading error:",
+          err
         );
 
-        return;
+        if (!cancelled) {
+          setError(
+            err.message ||
+            "Unable to load this trip."
+          );
+        }
+
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
+    };
 
-      console.log(
-        "SPLITS CREATED:",
-        insertedSplits
-      );
+    fetchTrip();
 
-      // Update expenses
-      setExpenses((prev) => [
-        newExpense,
-        ...prev
-      ]);
+    return () => {
+      cancelled = true;
+    };
+  }, [tripId]);
 
-      // Reset form
-      setLocation("");
-      setCategory("");
-      setTransportType("");
-      setAmount("");
-      setPaidBy("");
-      setSharedWith([]);
-      setSplitType("equal");
-      setNote("");
-      setSplitValues({});
 
-      setShowExpenseForm(false);
+  // =========================================
+  // FORMAT MONEY
+  // =========================================
 
-      alert(
-        "Expense added successfully! 🎉"
-      );
+  const formatMoney = (amount) => {
+    return Number(amount || 0).toLocaleString(
+      "en-IN",
+      {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2,
+      }
+    );
+  };
 
-    } catch (error) {
-      console.error(
-        "ADD EXPENSE ERROR:",
-        error
-      );
 
-      alert(
-        "Unexpected error:\n\n" +
-        error.message
-      );
+  // =========================================
+  // LOADING SCREEN
+  // =========================================
 
-    } finally {
-      setSavingExpense(false);
-    }
+  if (loading) {
+    return (
+      <div
+        className="travel-dashboard"
+        style={{
+          backgroundImage:
+            `url(${landingPage})`,
+        }}
+      >
+
+        <div className="dashboard-overlay"></div>
+
+        <div className="dashboard-content">
+
+          <nav className="dashboard-nav">
+
+            <Link
+              to="/dashboard"
+              className="dashboard-logo"
+            >
+              Your Trip Expense
+            </Link>
+
+            <div className="dashboard-nav-right">
+
+              <span className="dashboard-nav-label">
+                TRIP DETAILS
+              </span>
+
+              <Link to="/dashboard">
+
+                <button className="dashboard-home-btn">
+                  Dashboard
+                </button>
+
+              </Link>
+
+            </div>
+
+          </nav>
+
+
+          <div className="dashboard-loading">
+
+            <div className="dashboard-spinner">
+              ↻
+            </div>
+
+            <p>
+              Loading your trip...
+            </p>
+
+          </div>
+
+        </div>
+
+      </div>
+    );
   }
 
-  // --------------------------------
-  // CALCULATE SPENT
-  // --------------------------------
 
-  const totalSpent = expenses.reduce(
+  // =========================================
+  // ERROR SCREEN
+  // =========================================
+
+  if (error) {
+    return (
+      <div
+        className="travel-dashboard"
+        style={{
+          backgroundImage:
+            `url(${landingPage})`,
+        }}
+      >
+
+        <div className="dashboard-overlay"></div>
+
+        <div className="dashboard-content">
+
+          <nav className="dashboard-nav">
+
+            <Link
+              to="/dashboard"
+              className="dashboard-logo"
+            >
+              Your Trip Expense
+            </Link>
+
+            <Link to="/dashboard">
+
+              <button className="dashboard-home-btn">
+                Dashboard
+              </button>
+
+            </Link>
+
+          </nav>
+
+
+          <section className="dashboard-empty glass-card">
+
+            <div className="empty-trip-icon">
+              ⚠️
+            </div>
+
+            <h2>
+              Unable to load trip
+            </h2>
+
+            <p>
+              {error}
+            </p>
+
+            <Link to="/dashboard">
+
+              <button className="dashboard-create-btn">
+                ← Back to Dashboard
+              </button>
+
+            </Link>
+
+          </section>
+
+        </div>
+
+      </div>
+    );
+  }
+
+
+  // =========================================
+  // SAFETY CHECK
+  // =========================================
+
+  if (!trip) {
+    return (
+      <div
+        className="travel-dashboard"
+        style={{
+          backgroundImage:
+            `url(${landingPage})`,
+        }}
+      >
+
+        <div className="dashboard-overlay"></div>
+
+        <div className="dashboard-content">
+
+          <nav className="dashboard-nav">
+
+            <Link
+              to="/dashboard"
+              className="dashboard-logo"
+            >
+              Your Trip Expense
+            </Link>
+
+            <Link to="/dashboard">
+
+              <button className="dashboard-home-btn">
+                Dashboard
+              </button>
+
+            </Link>
+
+          </nav>
+
+
+          <section className="dashboard-empty glass-card">
+
+            <div className="empty-trip-icon">
+              🔍
+            </div>
+
+            <h2>
+              Trip not found
+            </h2>
+
+            <p>
+              This trip could not be found.
+            </p>
+
+            <Link to="/dashboard">
+
+              <button className="dashboard-create-btn">
+                ← Back to Dashboard
+              </button>
+
+            </Link>
+
+          </section>
+
+        </div>
+
+      </div>
+    );
+  }
+
+
+  // =========================================
+  // CALCULATE TOTALS
+  // =========================================
+
+  const budget = Number(
+    trip.budget || 0
+  );
+
+  const spent = expenses.reduce(
     (total, expense) =>
       total + Number(expense.amount || 0),
     0
   );
 
-  const tripBudget = Number(
-    trip?.budget || 0
-  );
+  const remaining =
+    budget - spent;
 
-  const remainingBudget =
-    tripBudget - totalSpent;
+  const percentage =
+    budget > 0
+      ? Math.min(
+          (spent / budget) * 100,
+          100
+        )
+      : 0;
 
-  // --------------------------------
-  // PAGE
-  // --------------------------------
+  const overBudget =
+    remaining < 0;
+
+
+  // =========================================
+  // MAIN PAGE
+  // =========================================
 
   return (
-    <div className="trip-details-page">
+    <div
+      className="travel-dashboard"
+      style={{
+        backgroundImage:
+          `url(${landingPage})`,
+      }}
+    >
 
-      <Link to="/dashboard">
-        <button>
-          ← Back to Dashboard
-        </button>
-      </Link>
+      {/* DARK BACKGROUND */}
 
-      <h1>{trip?.name}</h1>
+      <div className="dashboard-overlay"></div>
 
-      {!loaded && !loading && (
-        <div>
-          <p>
-            Click below to load this trip.
-          </p>
 
-          <button onClick={getTrip}>
-            Load Trip
-          </button>
-        </div>
-      )}
+      {/* PAGE CONTENT */}
 
-      {loading && (
-        <p>
-          Loading trip...
-        </p>
-      )}
+      <div className="dashboard-content">
 
-      {loaded && trip && (
-        <>
 
-          <p>
-            📍 {trip.destination}
-          </p>
+        {/* ===================================
+            NAVBAR
+        =================================== */}
 
-          <p>
-            📅 {trip.start_date} →{" "}
-            {trip.end_date}
-          </p>
+        <nav className="dashboard-nav">
 
-          <hr />
+          <Link
+            to="/dashboard"
+            className="dashboard-logo"
+          >
+            Your Trip Expense
+          </Link>
 
-          {/* BUDGET */}
 
-          <h2>Trip Budget</h2>
+          <div className="dashboard-nav-right">
 
-          <div className="budget-section">
+            <span className="dashboard-nav-label">
+              TRIP DETAILS
+            </span>
 
-            <div>
-              <h3>
-                💰 Budget
-              </h3>
+            <Link to="/dashboard">
 
-              <p>
-                ₹
-                {tripBudget.toFixed(2)}
-              </p>
-            </div>
+              <button className="dashboard-home-btn">
+                Dashboard
+              </button>
 
-            <div>
-              <h3>
-                💸 Spent
-              </h3>
-
-              <p>
-                ₹
-                {totalSpent.toFixed(2)}
-              </p>
-            </div>
-
-            <div>
-              <h3>
-                {remainingBudget >= 0
-                  ? "🟢 Remaining"
-                  : "🔴 Over Budget"}
-              </h3>
-
-              <p>
-                ₹
-                {Math.abs(
-                  remainingBudget
-                ).toFixed(2)}
-              </p>
-
-              {remainingBudget < 0 && (
-                <small>
-                  You have exceeded your
-                  budget.
-                </small>
-              )}
-            </div>
+            </Link>
 
           </div>
 
-          <hr />
+        </nav>
 
-          {/* MEMBERS */}
 
-          <h2>
-            Trip Members
-          </h2>
+        {/* ===================================
+            TRIP HEADER
+        =================================== */}
 
-          {members.length === 0 && (
-            <p>
-              No members added yet.
+        <section className="dashboard-hero">
+
+          <div>
+
+            <p className="dashboard-eyebrow">
+              YOUR JOURNEY • YOUR MONEY
             </p>
-          )}
 
-          {members.map((member) => (
-            <div key={member.id}>
-              👤{" "}
-              {member.member_name}
+            <h1>
+
+              {trip.name}
+
+              <br />
+
+              <span>
+                {trip.destination}
+              </span>
+
+            </h1>
+
+            <p className="dashboard-description">
+
+              📅 {trip.start_date}
+
+              {"  →  "}
+
+              {trip.end_date}
+
+            </p>
+
+          </div>
+
+
+          <div className="dashboard-main-actions">
+
+            <Link to="/dashboard">
+
+              <button className="dashboard-refresh-btn">
+                ← Back to Dashboard
+              </button>
+
+            </Link>
+
+          </div>
+
+        </section>
+
+
+        {/* ===================================
+            TRIP OVERVIEW
+        =================================== */}
+
+        <section className="dashboard-trips">
+
+          <div className="dashboard-section-title">
+
+            <div>
+
+              <p>
+                TRIP OVERVIEW
+              </p>
+
+              <h2>
+                Your Trip
+              </h2>
+
             </div>
-          ))}
 
-          <form onSubmit={addMember}>
+            <span>
+              {members.length}{" "}
+              {members.length === 1
+                ? "Member"
+                : "Members"}
+            </span>
 
-            <input
-              type="text"
-              placeholder="Enter member name"
-              value={memberName}
-              onChange={(e) =>
-                setMemberName(
-                  e.target.value
-                )
-              }
-            />
+          </div>
 
-            <button
-              type="submit"
-              disabled={addingMember}
-            >
-              {addingMember
-                ? "Adding..."
-                : "Add Member"}
-            </button>
 
-          </form>
+          <div className="travel-trip-grid">
 
-          <hr />
 
-          {/* EXPENSES */}
+            {/* ===============================
+                BUDGET CARD
+            =============================== */}
 
-          <h2>
-            Expenses
-          </h2>
+            <article className="travel-trip-card">
 
-          <button
-            onClick={() =>
-              setShowExpenseForm(
-                !showExpenseForm
-              )
-            }
-          >
-            {showExpenseForm
-              ? "Close Expense Form"
-              : "+ Add Expense"}
-          </button>
+              <div className="travel-card-header">
 
-          {showExpenseForm && (
-            <form
-              onSubmit={addExpense}
-            >
-
-              <h3>
-                Add New Expense
-              </h3>
-
-              <div>
-                <label>
-                  Where was the money
-                  spent?
-                </label>
-
-                <input
-                  type="text"
-                  placeholder="Example: Restaurant"
-                  value={location}
-                  onChange={(e) =>
-                    setLocation(
-                      e.target.value
-                    )
-                  }
-                  required
-                />
-              </div>
-
-              <div>
-                <label>
-                  Category
-                </label>
-
-                <select
-                  value={category}
-                  onChange={(e) => {
-                    setCategory(
-                      e.target.value
-                    );
-                    setTransportType("");
-                  }}
-                  required
-                >
-                  <option value="">
-                    Select Category
-                  </option>
-
-                  <option value="Food">
-                    Food
-                  </option>
-
-                  <option value="Transport">
-                    Transport
-                  </option>
-
-                  <option value="Hotel / Stay">
-                    Hotel / Stay
-                  </option>
-
-                  <option value="Activities">
-                    Activities
-                  </option>
-
-                  <option value="Shopping">
-                    Shopping
-                  </option>
-
-                  <option value="Personal">
-                    Personal
-                  </option>
-
-                  <option value="Medical">
-                    Medical
-                  </option>
-
-                  <option value="Other">
-                    Other
-                  </option>
-                </select>
-              </div>
-
-              {category ===
-                "Transport" && (
                 <div>
 
-                  <label>
-                    Transport Type
-                  </label>
+                  <span className="trip-small-label">
+                    TRIP BUDGET
+                  </span>
 
-                  <select
-                    value={
-                      transportType
-                    }
-                    onChange={(e) =>
-                      setTransportType(
-                        e.target.value
-                      )
-                    }
-                    required
-                  >
-                    <option value="">
-                      Select Transport
-                    </option>
+                  <h3>
+                    ₹{formatMoney(budget)}
+                  </h3>
 
-                    <option value="Train">
-                      Train
-                    </option>
-
-                    <option value="Bus">
-                      Bus
-                    </option>
-
-                    <option value="Taxi/Cab">
-                      Taxi/Cab
-                    </option>
-
-                    <option value="Car">
-                      Car
-                    </option>
-
-                    <option value="Scooty">
-                      Scooty
-                    </option>
-
-                    <option value="Bike">
-                      Bike
-                    </option>
-
-                    <option value="Flight">
-                      Flight
-                    </option>
-
-                    <option value="Ship/Ferry">
-                      Ship/Ferry
-                    </option>
-
-                    <option value="Auto">
-                      Auto
-                    </option>
-
-                    <option value="Metro">
-                      Metro
-                    </option>
-
-                    <option value="Bicycle">
-                      Bicycle
-                    </option>
-
-                    <option value="Other">
-                      Other
-                    </option>
-
-                  </select>
+                  <p>
+                    Total budget
+                  </p>
 
                 </div>
-              )}
 
-              <div>
-                <label>
-                  Amount
-                </label>
+                <div className="travel-card-icon">
+                  💰
+                </div>
 
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  placeholder="Example: 8000"
-                  value={amount}
-                  onChange={(e) =>
-                    setAmount(
-                      e.target.value
-                    )
-                  }
-                  required
-                />
               </div>
 
-              <div>
-                <label>
-                  Who paid?
-                </label>
 
-                <select
-                  value={paidBy}
-                  onChange={(e) =>
-                    setPaidBy(
-                      e.target.value
-                    )
-                  }
-                  required
-                >
-                  <option value="">
-                    Select member
-                  </option>
+              <div className="travel-money-grid">
 
-                  {members.map(
-                    (member) => (
-                      <option
-                        key={member.id}
-                        value={
-                          member.member_name
-                        }
-                      >
-                        {
-                          member.member_name
-                        }
-                      </option>
-                    )
-                  )}
-                </select>
+                <div>
+
+                  <span>
+                    SPENT
+                  </span>
+
+                  <strong>
+                    ₹{formatMoney(spent)}
+                  </strong>
+
+                </div>
+
+
+                <div>
+
+                  <span>
+                    REMAINING
+                  </span>
+
+                  <strong>
+                    ₹{formatMoney(
+                      Math.abs(remaining)
+                    )}
+                  </strong>
+
+                </div>
+
               </div>
 
-              <div>
 
-                <label>
-                  Shared with
-                </label>
+              <div className="travel-progress-area">
 
-                {members.map(
-                  (member) => (
-                    <label
+                <div className="travel-progress-text">
+
+                  <span>
+                    Budget used
+                  </span>
+
+                  <span>
+                    {percentage.toFixed(0)}%
+                  </span>
+
+                </div>
+
+
+                <div className="travel-progress">
+
+                  <div
+                    className={
+                      overBudget
+                        ? "travel-progress-fill over"
+                        : "travel-progress-fill"
+                    }
+                    style={{
+                      width:
+                        `${percentage}%`,
+                    }}
+                  />
+
+                </div>
+
+              </div>
+
+
+              <div
+                className={
+                  overBudget
+                    ? "travel-remaining over"
+                    : "travel-remaining"
+                }
+              >
+
+                <div>
+
+                  <span>
+                    {overBudget
+                      ? "OVER BUDGET"
+                      : "REMAINING"}
+                  </span>
+
+                  <strong>
+                    ₹{formatMoney(
+                      Math.abs(remaining)
+                    )}
+                  </strong>
+
+                </div>
+
+                <span>
+                  {overBudget
+                    ? "⚠"
+                    : "✓"}
+                </span>
+
+              </div>
+
+            </article>
+
+
+            {/* ===============================
+                MEMBERS CARD
+            =============================== */}
+
+            <article className="travel-trip-card">
+
+              <div className="travel-card-header">
+
+                <div>
+
+                  <span className="trip-small-label">
+                    MEMBERS
+                  </span>
+
+                  <h3>
+                    {members.length}
+                  </h3>
+
+                  <p>
+                    People in this trip
+                  </p>
+
+                </div>
+
+                <div className="travel-card-icon">
+                  👥
+                </div>
+
+              </div>
+
+
+              <div
+                style={{
+                  marginTop: "20px",
+                }}
+              >
+
+                {members.length === 0 ? (
+
+                  <p>
+                    No members added yet.
+                  </p>
+
+                ) : (
+
+                  members.map((member) => (
+
+                    <div
                       key={member.id}
                       style={{
-                        display:
-                          "block"
+                        padding:
+                          "11px 12px",
+                        marginBottom:
+                          "8px",
+                        borderRadius:
+                          "10px",
+                        background:
+                          "rgba(255,255,255,0.06)",
+                        color:
+                          "#dbeafe",
                       }}
                     >
 
-                      <input
-                        type="checkbox"
-                        checked={sharedWith.includes(
-                          member.member_name
-                        )}
-                        onChange={() =>
-                          toggleSharedMember(
-                            member.member_name
-                          )
-                        }
-                      />
-
-                      {" "}
-                      {
-                        member.member_name
-                      }
-
-                    </label>
-                  )
-                )}
-
-              </div>
-
-              <div>
-
-                <label>
-                  Split Type
-                </label>
-
-                <select
-                  value={splitType}
-                  onChange={(e) =>
-                    handleSplitTypeChange(
-                      e.target.value
-                    )
-                  }
-                >
-                  <option value="equal">
-                    Equal
-                  </option>
-
-                  <option value="custom">
-                    Custom Amount
-                  </option>
-
-                  <option value="percentage">
-                    Percentage
-                  </option>
-                </select>
-
-              </div>
-
-              {(splitType ===
-                "custom" ||
-                splitType ===
-                  "percentage") &&
-                sharedWith.map(
-                  (name) => (
-                    <div key={name}>
-
-                      <label>
-                        {name}{" "}
-                        {splitType ===
-                        "custom"
-                          ? "Amount"
-                          : "Percentage"}
-                      </label>
-
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={
-                          splitValues[
-                            name
-                          ] || ""
-                        }
-                        onChange={(e) =>
-                          updateSplitValue(
-                            name,
-                            e.target.value
-                          )
-                        }
-                        placeholder={
-                          splitType ===
-                          "custom"
-                            ? "Amount"
-                            : "%"
-                        }
-                      />
+                      👤{" "}
+                      {member.member_name}
 
                     </div>
-                  )
-                )}
 
-              <div>
+                  ))
 
-                <label>
-                  Note
-                </label>
-
-                <textarea
-                  placeholder="Optional note"
-                  value={note}
-                  onChange={(e) =>
-                    setNote(
-                      e.target.value
-                    )
-                  }
-                />
-
-              </div>
-
-              <button
-                type="submit"
-                disabled={
-                  savingExpense
-                }
-              >
-                {savingExpense
-                  ? "Saving..."
-                  : "Save Expense"}
-              </button>
-
-            </form>
-          )}
-
-          <hr />
-
-          {/* EXPENSE HISTORY */}
-
-          <h2>
-            Expense History
-          </h2>
-
-          {expenses.length === 0 && (
-            <p>
-              No expenses added yet.
-            </p>
-          )}
-
-          {expenses.map(
-            (expense) => (
-              <div
-                key={expense.id}
-                className="expense-card"
-              >
-
-                <h3>
-                  ₹
-                  {Number(
-                    expense.amount
-                  ).toFixed(2)}
-                </h3>
-
-                <p>
-                  📍{" "}
-                  {expense.location}
-                </p>
-
-                <p>
-                  📂{" "}
-                  {expense.category}
-                </p>
-
-                {expense.transport_type && (
-                  <p>
-                    🚗{" "}
-                    {
-                      expense.transport_type
-                    }
-                  </p>
-                )}
-
-                <p>
-                  💳 Paid by:{" "}
-                  {expense.paid_by}
-                </p>
-
-                <p>
-                  🔀 Split:{" "}
-                  {expense.split_type}
-                </p>
-
-                {expense.note && (
-                  <p>
-                    📝{" "}
-                    {expense.note}
-                  </p>
                 )}
 
               </div>
-            )
+
+            </article>
+
+
+            {/* ===============================
+                EXPENSE SUMMARY
+            =============================== */}
+
+            <article className="travel-trip-card">
+
+              <div className="travel-card-header">
+
+                <div>
+
+                  <span className="trip-small-label">
+                    EXPENSES
+                  </span>
+
+                  <h3>
+                    {expenses.length}
+                  </h3>
+
+                  <p>
+                    Recorded expenses
+                  </p>
+
+                </div>
+
+                <div className="travel-card-icon">
+                  💸
+                </div>
+
+              </div>
+
+
+              <div className="travel-money-grid">
+
+                <div>
+
+                  <span>
+                    TOTAL SPENT
+                  </span>
+
+                  <strong>
+                    ₹{formatMoney(spent)}
+                  </strong>
+
+                </div>
+
+
+                <div>
+
+                  <span>
+                    AVERAGE
+                  </span>
+
+                  <strong>
+                    ₹
+                    {formatMoney(
+                      expenses.length
+                        ? spent /
+                          expenses.length
+                        : 0
+                    )}
+                  </strong>
+
+                </div>
+
+              </div>
+
+            </article>
+
+          </div>
+
+        </section>
+
+
+        {/* ===================================
+            EXPENSES
+        =================================== */}
+
+        <section className="dashboard-trips">
+
+          <div className="dashboard-section-title">
+
+            <div>
+
+              <p>
+                MONEY TRACKER
+              </p>
+
+              <h2>
+                Trip Expenses
+              </h2>
+
+            </div>
+
+            <span>
+              {expenses.length}{" "}
+              {expenses.length === 1
+                ? "Expense"
+                : "Expenses"}
+            </span>
+
+          </div>
+
+
+          {expenses.length === 0 ? (
+
+            <section className="dashboard-empty glass-card">
+
+              <div className="empty-trip-icon">
+                💸
+              </div>
+
+              <h2>
+                No expenses yet
+              </h2>
+
+              <p>
+                Expenses added to this trip
+                will appear here.
+              </p>
+
+            </section>
+
+          ) : (
+
+            <div className="travel-trip-grid">
+
+              {expenses.map((expense) => (
+
+                <article
+                  className="travel-trip-card"
+                  key={expense.id}
+                >
+
+                  <div className="travel-card-header">
+
+                    <div>
+
+                      <span className="trip-small-label">
+
+                        {expense.category ||
+                          "OTHER"}
+
+                      </span>
+
+                      <h3>
+
+                        {expense.description ||
+                          expense.location ||
+                          "Trip Expense"}
+
+                      </h3>
+
+                      {expense.location && (
+
+                        <p>
+                          📍{" "}
+                          {expense.location}
+                        </p>
+
+                      )}
+
+                    </div>
+
+                    <div className="travel-card-icon">
+                      💸
+                    </div>
+
+                  </div>
+
+
+                  <div className="travel-money-grid">
+
+                    <div>
+
+                      <span>
+                        AMOUNT
+                      </span>
+
+                      <strong>
+                        ₹
+                        {formatMoney(
+                          expense.amount
+                        )}
+                      </strong>
+
+                    </div>
+
+
+                    <div>
+
+                      <span>
+                        PAID BY
+                      </span>
+
+                      <strong>
+                        {expense.paid_by ||
+                          "-"}
+                      </strong>
+
+                    </div>
+
+                  </div>
+
+
+                  {expense.transport_type && (
+
+                    <div className="travel-date">
+
+                      🚗{" "}
+                      {expense.transport_type}
+
+                    </div>
+
+                  )}
+
+
+                  <div className="travel-date">
+
+                    👥 Split:{" "}
+                    {expense.split_type ||
+                      "equal"}
+
+                  </div>
+
+
+                  {expense.note && (
+
+                    <div className="travel-date">
+
+                      📝{" "}
+                      {expense.note}
+
+                    </div>
+
+                  )}
+
+                </article>
+
+              ))}
+
+            </div>
+
           )}
 
-        </>
-      )}
+        </section>
+
+
+        {/* ===================================
+            BACK BUTTON
+        =================================== */}
+
+        <div
+          style={{
+            marginTop: "45px",
+            textAlign: "center",
+          }}
+        >
+
+          <Link to="/dashboard">
+
+            <button className="dashboard-refresh-btn">
+              ← Back to Dashboard
+            </button>
+
+          </Link>
+
+        </div>
+
+      </div>
 
     </div>
   );
