@@ -2270,3 +2270,145 @@ a {
   background: #ffffff !important;
   -webkit-text-fill-color: #111111 !important;
 }
+/* =========================================
+   ADD EXPENSE ACCESSIBILITY + MOBILE FIX
+========================================= */
+
+.trip-form-card {
+  width: 100%;
+  max-width: 700px;
+  margin-left: auto;
+  margin-right: auto;
+  box-sizing: border-box;
+}
+
+/* Labels */
+.trip-form-card .form-field label {
+  color: #334155 !important;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* Inputs, dropdowns and textarea */
+.trip-form-card .form-field input,
+.trip-form-card .form-field select,
+.trip-form-card .form-field textarea {
+  width: 100%;
+  box-sizing: border-box;
+
+  background: #ffffff !important;
+  color: #111827 !important;
+
+  -webkit-text-fill-color: #111827 !important;
+
+  border: 1px solid #cbd5e1;
+
+  border-radius: 10px;
+}
+
+/* Placeholder */
+.trip-form-card .form-field input::placeholder,
+.trip-form-card .form-field textarea::placeholder {
+  color: #64748b !important;
+  -webkit-text-fill-color: #64748b !important;
+  opacity: 1;
+}
+
+/* Dropdown */
+.trip-form-card .form-field select option {
+  background: #ffffff;
+  color: #111827;
+}
+
+/* Shared member buttons */
+.trip-form-card .shared-member {
+  background: #ffffff;
+  color: #334155 !important;
+  border: 1px solid #cbd5e1;
+}
+
+/* Selected member */
+.trip-form-card .shared-member.selected {
+  background: #e0e7ff !important;
+  color: #312e81 !important;
+  border: 1px solid #818cf8;
+  font-weight: 700;
+}
+
+/* Split details */
+.trip-form-card .split-editor {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.trip-form-card .split-editor-title {
+  color: #334155 !important;
+}
+
+.trip-form-card .split-person {
+  color: #0f172a !important;
+  font-weight: 600;
+}
+
+.trip-form-card .split-input span {
+  color: #475569 !important;
+}
+
+.trip-form-card .split-total {
+  color: #334155 !important;
+}
+
+.trip-form-card .split-total strong {
+  color: #166534 !important;
+}
+
+/* Expense action buttons */
+.trip-form-card .form-actions {
+  width: 100%;
+}
+
+.trip-form-card .form-actions button {
+  min-height: 46px;
+}
+
+/* Mobile */
+@media (max-width: 600px) {
+
+  .trip-form-card {
+    width: 100%;
+    max-width: 100%;
+    margin-left: 0;
+    margin-right: 0;
+    padding: 20px 16px;
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .form-actions {
+    flex-direction: column;
+  }
+
+  .form-actions button {
+    width: 100%;
+    min-height: 48px;
+  }
+
+  .shared-member {
+    width: 100%;
+  }
+
+  .split-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .split-input {
+    width: 100%;
+  }
+
+  .split-input input {
+    width: 100%;
+  }
+}
